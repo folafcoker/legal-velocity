@@ -1,45 +1,62 @@
 # Next Steps
 
-## When the Juro export arrives
+## Status
 
-The dashboard currently runs on mock data. To wire it up to real data:
-
-### 1. Get the export
-Ask Juro for a contract activity export that includes these events:
-- `contract.approval_requested`
-- `contract.approval_in_progress`
-- `contract.approval_process_finished`
-
-Each event row should have: `contract_id`, `contract_name`, `counterparty`, `event_type`, `recipient_email`, `timestamp`.
-
-### 2. Map the events → turns
-
-For each contract, scan events in chronological order:
-- When you see `contract.approval_requested` where `recipient = elaine@granola.so` → open a new turn, set `sentToElaine`
-- When you see `contract.approval_requested` where `recipient ≠ elaine@granola.so` (and a turn is open) → close the turn, set `returnedDate`, `returnTrigger: "approval_requested"`
-- When you see `contract.approval_process_finished` (and a turn is open) → close the turn, set `returnedDate`, `returnTrigger: "approval_process_finished"`
-
-### 3. Replace the mock data in the HTML
-
-Find the `const CONTRACTS = [...]` block near the top of `legal-velocity.html` and replace it with the real data. Everything else is automatic.
+The dashboard is live at **https://legal-velocity.vercel.app** with full webhook integration.
 
 ---
 
-## Juro MCP improvements
+## Completed ✅
 
-The MCP server at `~/juro-mcp/server.py` has a `get_contract_activity` tool added but the Juro v3 REST API does not currently expose a timestamped audit/activity log via API key.
-
-Options to get real-time data:
-1. **Juro UI export** — manual, but works now
-2. **Juro webhooks** — configure Juro to POST `contract.approval_requested` and `contract.approval_process_finished` events to an endpoint; store them; feed into the dashboard. This is the right long-term solution.
-3. **Check with Juro support** — ask if the activity log API requires a different auth method (session-based vs API key)
+- [x] Static dashboard with seed data (61 contracts, 217 turns)
+- [x] Deployed to Vercel
+- [x] Juro webhooks connected (`contract.sent_for_approval`, `contract.fully_approved`)
+- [x] Upstash Redis connected for live contract state
+- [x] `/api/webhook` — processes Juro events, writes turns to Redis
+- [x] `/api/contracts` — serves live data to the dashboard
+- [x] Live data overlay — dashboard fetches on load, merges with seed data, shows LIVE badge
+- [x] `/api/feed` — last 24h approval activity feed, max 5 items, auto-refreshes every 60s
+- [x] Slack notifications to `#x-velocity-legal-pulse` on every contract sent to Elaine
+  - Enriched with Juro smartfields (Priority Level, Internal Status, Owner) via `JURO_API_KEY`
 
 ---
 
-## Possible dashboard improvements (backlog)
+## Testing checklist for next session 🧪
 
-- [ ] Wire to live Juro webhook data so it auto-updates
+### Webhook end-to-end
+- [ ] Send a test contract to Elaine in Juro — confirm:
+  - Webhook fires and logs correctly (check Vercel function logs)
+  - Contract appears in `/api/contracts`
+  - Dashboard shows LIVE badge and new contract row
+  - Feed shows the new event under "Last 24 hours"
+  - Slack message appears in `#x-velocity-legal-pulse` with correct fields
+
+- [ ] Have Elaine return a contract — confirm:
+  - Turn closes with `returnedDate` + `returnedTo` populated
+  - Feed shows "returned to [name]" event
+
+- [ ] Fully approve a contract — confirm:
+  - Turn closes with `returnTrigger: approval_process_finished`
+  - Feed shows "fully approved" event
+
+### Slack notification
+- [ ] Verify Priority Level, Owner, Internal Status populate from Juro smartfields
+  (if blank, check what smartfield names Juro uses and update `smartfield()` in `api/webhook.js`)
+- [ ] Verify "View in Juro →" button link is correct (Juro contract URL format)
+
+### Data quality
+- [ ] Check contract name normalisation looks right for new contracts
+  (edit `normalizeName()` in `api/webhook.js` if names look messy)
+- [ ] Confirm seed data contracts don't create duplicates when live versions arrive
+  (matching is by `contract.id` then `contract.name`)
+
+---
+
+## Backlog
+
 - [ ] Add filters: by sales rep, by date range, by counterparty
 - [ ] Add a second approver view (Palmer, Fola) using the same turn model
 - [ ] Export to CSV for COO reporting
 - [ ] Flag contracts where Elaine has had it for >7 days with no response
+- [ ] Verify Juro contract URL format (`https://app.juro.com/document/{id}`) — update if different
+- [ ] Consider adding `JURO_WEBHOOK_SECRET` for signature verification once stable

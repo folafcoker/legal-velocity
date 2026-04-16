@@ -1,0 +1,24 @@
+{
+  "name": "legal-velocity",
+  "version": "1.0.0",
+  "description": "Dashboard for tracking how long contracts spend with Elaine during the internal approval loop.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/folafcoker/legal-velocity.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/folafcoker/legal-velocity/issues"
+  },
+  "homepage": "https://github.com/folafcoker/legal-velocity#readme",
+  "dependencies": {
+    "@upstash/redis": "^1.37.0"
+  }
+}

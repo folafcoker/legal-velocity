@@ -1,1 +1,13 @@
+# Vercel
 .vercel
+
+# Attio
+.attio
+
+# Dependencies
+node_modules/
+
+# Local env (contains secrets — never commit)
+.env
+.env.local
+.env.*.local

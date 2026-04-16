@@ -237,6 +237,64 @@ html, body {
   font-size: 12px; color: var(--txt-3);
 }
 .footer-row .avg-days { font-size: 15px; }
+
+/* ── Feed ───────────────────── */
+.feed {
+  margin: 20px 0 0;
+  padding: 14px 0 6px;
+  border-top: 1px solid var(--line);
+}
+.feed-header {
+  font-size: 10.5px; font-weight: 500;
+  color: var(--txt-3); letter-spacing: 0.3px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.feed-pulse {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #16a34a;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+.feed-item {
+  display: flex; align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.feed-item:last-child { border-bottom: none; }
+.feed-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  flex-shrink: 0; margin-top: 3px;
+}
+.feed-dot.opened   { background: #6366f1; }
+.feed-dot.closed   { background: var(--txt-3); }
+.feed-dot.approved { background: var(--good); }
+.feed-name   { font-weight: 500; color: var(--txt); }
+.feed-action { color: var(--txt-2); flex: 1; }
+.feed-time   { font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); white-space: nowrap; }
+
+/* ── Live badge ─────────────── */
+.live-badge {
+  display: none;
+  font-size: 10px; font-weight: 500;
+  color: #16a34a;
+  background: #dcfce7;
+  border-radius: 8px;
+  padding: 2px 7px;
+  margin-left: 8px;
+  vertical-align: middle;
+  letter-spacing: 0.2px;
+}
+.live-badge.error {
+  color: #b45309;
+  background: #fef3c7;
+}
 </style>
 </head>
 <body>
@@ -246,6 +304,7 @@ html, body {
     <div class="meta-left">
       <h1>Elaine — Approval Turnaround</h1>
       <p>Time from approval request to Elaine → returned to sales rep</p>
+      <p id="live-status" style="margin-top:4px;font-size:11px;color:var(--txt-3)"></p>
     </div>
     <div class="meta-right">
       <div class="avg-num" id="avg-num">—</div>
@@ -256,6 +315,14 @@ html, body {
   <div class="filter-bar" id="filter-bar">
     <span class="filter-label">Type</span>
     <span class="filter-clear hidden" id="filter-clear">Clear all ×</span>
+  </div>
+
+  <div class="feed" id="feed" style="display:none">
+    <div class="feed-header">
+      <span class="feed-pulse"></span>
+      Last 24 hours
+    </div>
+    <div id="feed-list"></div>
   </div>
 
   <div class="col-headers">
@@ -280,7 +347,7 @@ html, body {
 //    (b) contract.approval_process_finished
 //  returnedDate: null = still open with Elaine, no day count shown
 // ─────────────────────────────────────────────────────
-const CONTRACTS = [
+let CONTRACTS = [
   {
     name:         "NEA",
     counterparty: "Order Form & ToS",
@@ -1004,6 +1071,109 @@ function render() {
 
 buildFilters();
 render();
+
+// ─────────────────────────────────────────────────────
+//  Feed — recent approval activity (last 24h, max 5)
+// ─────────────────────────────────────────────────────
+function relTime(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m <  1)  return 'just now';
+  if (m <  60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h <  24) return `${h}h ago`;
+  return 'yesterday';
+}
+
+function feedActionText(item) {
+  if (item.type === 'turn_opened') {
+    const by = item.sentBy ? ` by ${item.sentBy}` : '';
+    return `<span class="feed-name">${item.contractName}</span> <span class="feed-action">sent to Elaine${by}</span>`;
+  }
+  if (item.type === 'turn_closed') {
+    return `<span class="feed-name">${item.contractName}</span> <span class="feed-action">returned to ${item.returnedTo || 'sales'}</span>`;
+  }
+  if (item.type === 'fully_approved') {
+    return `<span class="feed-name">${item.contractName}</span> <span class="feed-action">fully approved</span>`;
+  }
+  return `<span class="feed-name">${item.contractName}</span>`;
+}
+
+function dotClass(type) {
+  if (type === 'turn_opened')   return 'opened';
+  if (type === 'turn_closed')   return 'closed';
+  if (type === 'fully_approved') return 'approved';
+  return 'closed';
+}
+
+async function loadFeed() {
+  try {
+    const res = await fetch('/api/feed');
+    if (!res.ok) return;
+    const items = await res.json();
+    if (!items.length) return;
+
+    const feedEl     = document.getElementById('feed');
+    const feedListEl = document.getElementById('feed-list');
+
+    feedListEl.innerHTML = items.map(item => `
+      <div class="feed-item">
+        <span class="feed-dot ${dotClass(item.type)}"></span>
+        <span style="flex:1">${feedActionText(item)}</span>
+        <span class="feed-time">${relTime(item.timestamp)}</span>
+      </div>`).join('');
+
+    feedEl.style.display = 'block';
+  } catch (e) { /* fail silently */ }
+}
+
+loadFeed();
+// Refresh feed every 60 seconds
+setInterval(loadFeed, 60000);
+
+// ─────────────────────────────────────────────────────
+//  Live data — overlay webhook-driven contracts from KV
+// ─────────────────────────────────────────────────────
+(async () => {
+  const statusEl = document.getElementById('live-status');
+  try {
+    const res = await fetch('/api/contracts');
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const { contracts: live, lastUpdated } = await res.json();
+
+    if (live && live.length > 0) {
+      // Merge: live contracts replace or extend the seed data
+      for (const c of live) {
+        const idx = CONTRACTS.findIndex(x => x.id === c.id || x.name === c.name);
+        if (idx >= 0) CONTRACTS[idx] = c;
+        else CONTRACTS.push(c);
+      }
+
+      // Refresh filter chip counts
+      document.querySelectorAll('.chip[data-group]').forEach(chip => {
+        const group = TYPE_GROUPS.find(g => g.label === chip.dataset.group);
+        if (!group) return;
+        const count = CONTRACTS.filter(c => group.match(c)).length;
+        chip.innerHTML = `${group.label}<span class="chip-count">${count}</span>`;
+      });
+
+      render();
+
+      // Show last-updated timestamp
+      if (lastUpdated && statusEl) {
+        const d = new Date(lastUpdated);
+        const fmt = d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        statusEl.innerHTML = `<span class="live-badge" style="display:inline">LIVE</span> Last updated ${fmt}`;
+      }
+    } else if (statusEl) {
+      // API reachable but no webhook data yet — show seed data silently
+      statusEl.textContent = '';
+    }
+  } catch (e) {
+    // API unreachable — seed data already rendered, show nothing
+    console.info('[live] Using seed data:', e.message);
+  }
+})();
 </script>
 </body>
 </html>
