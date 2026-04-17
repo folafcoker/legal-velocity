@@ -87,10 +87,28 @@ async function sendSlackNotification({ contractName, docType, contractId, priori
 
 function normalizeName(title = '') {
   let name = title.replace(/\.docx?$/i, '').trim();
+
+  // "Company + Granola - ..." or "Company, Granola - ..."
   let m = name.match(/^(.+?)\s*[,+]\s*Granola\b/i);
   if (m) return m[1].trim();
+
+  // "Granola - Company - ..." or "Granola_Company_..."
   m = name.match(/^Granola\s*[-_–]\s*(.+?)(?:\s*[-_–]|\s+Enterprise|\s+Order|\s+MSA|\s*$)/i);
   if (m) return m[1].trim();
+
+  // "Granola Order Form (Acme comments ...)" — extract company from parenthetical
+  m = name.match(/\((\w[\w\s]*?)\s+(?:comments|redlines?|rev\b|markup)/i);
+  if (m) return m[1].trim();
+
+  // "Granola CompanyName" — single CamelCase/Title word after Granola (not a type keyword)
+  m = name.match(/^Granola\s+([A-Z][a-z]\w+)(?:\s|$)/);
+  if (m) return m[1].trim();
+
+  // "2026AIPACMNDA" → strip year prefix and known suffix → "AIPAC"
+  m = name.match(/^(?:20\d{2})?([A-Z]{2,}?)(?:MNDA|MSA|DPA|NDA)$/);
+  if (m) return m[1].trim();
+
+  // Fallback: first segment before any separator
   return name.split(/\s*[-–_]\s*/)[0].trim() || name;
 }
 

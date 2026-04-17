@@ -942,10 +942,27 @@ const TYPE_GROUPS = [
 ];
 
 function filteredContracts() {
-  if (!activeFilters.size) return CONTRACTS;
-  return CONTRACTS.filter(c =>
-    TYPE_GROUPS.filter(g => activeFilters.has(g.label)).some(g => g.match(c))
-  );
+  let list = activeFilters.size
+    ? CONTRACTS.filter(c => TYPE_GROUPS.filter(g => activeFilters.has(g.label)).some(g => g.match(c)))
+    : [...CONTRACTS];
+
+  // Sort: live+open → any open → closed, each group newest first
+  list.sort((a, b) => {
+    const aOpen = a.turns.some(t => t.returnedDate === null);
+    const bOpen = b.turns.some(t => t.returnedDate === null);
+    const aLive = !!a.id;
+    const bLive = !!b.id;
+
+    if ((aLive && aOpen) !== (bLive && bOpen)) return (aLive && aOpen) ? -1 : 1;
+    if (aOpen !== bOpen) return aOpen ? -1 : 1;
+
+    // Within same tier, sort by most recent turn date
+    const aDate = a.turns.length ? a.turns[a.turns.length - 1].sentToElaine : '';
+    const bDate = b.turns.length ? b.turns[b.turns.length - 1].sentToElaine : '';
+    return bDate.localeCompare(aDate);
+  });
+
+  return list;
 }
 
 function buildFilters() {
