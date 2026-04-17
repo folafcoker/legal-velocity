@@ -11,7 +11,7 @@ Live dashboard tracking how long contracts spend with Elaine during the internal
 - Shows every contract sent to Elaine for approval, with per-turn breakdown (sent → returned, days taken)
 - Color-coded turnaround times: green ≤3d, amber ≤7d, red >7d
 - **Live feed** — approval activity from the last 24 hours, auto-refreshes every 60s
-- **Slack notifications** — posts to `#x-velocity-legal-pulse` whenever a contract lands with Elaine
+- **Slack notifications** — posts to `#x-velocity-legal-pulse` whenever a contract lands with Elaine, including Priority Level, Internal Status, Owner and a direct Juro link
 - Historical seed data is always visible; live webhook data overlays on top as it arrives
 
 ---
@@ -19,16 +19,38 @@ Live dashboard tracking how long contracts spend with Elaine during the internal
 ## Architecture
 
 ```
-Juro (contract.sent_for_approval / contract.fully_approved)
+Juro (contract.approval_requested / contract.fully_approved)
     ↓  webhook POST
-/api/webhook          ← processes event, updates Redis, fires Slack
+/api/webhook          ← parses event, updates Redis, fires Slack
     ↓
 Upstash Redis         ← stores live contract turns + feed events
     ↓
 /api/contracts        ← serves merged contract data to the dashboard
 /api/feed             ← serves last 24h activity feed (max 5 items)
     ↓
-index.html            ← dashboard fetches on load, merges with seed data
+index.html            ← fetches on load, merges with seed data, shows LIVE badge
+```
+
+### Juro webhook payload shape
+
+Juro sends events in this structure (confirmed from live payloads):
+
+```json
+{
+  "event": {
+    "type": "contract.approval_requested",
+    "by":   { "email": "elaine@granola.so", "name": "Elaine Foreman" }
+  },
+  "contract": {
+    "id":          "69e23661d4c650606c10958d",
+    "name":        "Acme Corp - Enterprise Order Form.docx",
+    "template":    { "name": "Enterprise Order Form with Platform Terms" },
+    "owner":       { "name": "Ryan Francis", "username": "ryan@granola.so" },
+    "fields":      [ { "title": "Priority Level", "value": "P0 / Top Priority" }, ... ],
+    "internalUrl": "https://app.juro.com/sign/{id}",
+    "updatedDate": "2026-04-17T15:14:15.636Z"
+  }
+}
 ```
 
 ---
@@ -52,8 +74,8 @@ See [`.env.example`](.env.example) for the full list. Required in Vercel:
 | `KV_REST_API_URL` | Upstash Redis — injected automatically by Vercel integration |
 | `KV_REST_API_TOKEN` | Upstash Redis — injected automatically by Vercel integration |
 | `SLACK_WEBHOOK_URL` | Incoming webhook for `#x-velocity-legal-pulse` |
-| `JURO_API_KEY` | Enriches Slack notifications with smartfield data (Priority, Owner, Status) |
-| `JURO_WEBHOOK_SECRET` | Optional — validates Juro webhook signature |
+| `JURO_API_KEY` | Optional — not currently used (smartfields come in the webhook payload) |
+| `JURO_WEBHOOK_SECRET` | Optional — validates Juro webhook signature header |
 
 ### Local development
 
@@ -84,7 +106,7 @@ legal-velocity/
 │   └── feed.js         ← recent activity feed API
 ├── .env.example        ← required environment variables
 ├── DATA_MODEL.md       ← turn data structure + Juro event mapping
-├── NEXT_STEPS.md       ← backlog and testing notes
+├── NEXT_STEPS.md       ← backlog and status
 ├── parse_juro.py       ← converts Juro activity export → JS (manual refresh)
 └── build_contracts.py  ← normalises contract names for display
 ```
