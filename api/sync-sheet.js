@@ -78,7 +78,10 @@ function normalizeName(raw) {
 
   // "Granola, Company" / "Granola + Company"
   m = name.match(/^Granola\s*[,+&]\s*(.+?)(?:\s*[-–(]|$)/i);
-  if (m) return m[1].trim();
+  if (m) {
+    const candidate = m[1].trim();
+    if (!/^(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.?)$/i.test(candidate)) return candidate;
+  }
 
   // Parenthetical company keyword: "(PCIG Comments)" / "(Tatari rev …)"
   m = name.match(/\(([A-Z][A-Za-z0-9 .&'-]{1,30}?)\s+(?:comments?|redlines?|rev\b|edits?|\d{1,2}[./])/i);
@@ -88,16 +91,23 @@ function normalizeName(raw) {
   m = name.match(/^Granola\s*[-–]\s*(?:Enterprise Order Form|Short Order Form|Order Form|MSA|MNDA|DPA|POC Agreement|Pilot|Platform Terms|Data Processing Addendum)\s*[-–]\s*(.+?)(?:\s*[-–(]|\s+\d|\s+[A-Z]{2,}|$)/i);
   if (m) return m[1].trim().split(/\s+/)[0];
 
+  // "Granola DocType Company …" without dashes (e.g. "Granola AI Pilot Agreement Citadel Comments")
+  m = name.match(/^Granola\s+(?:AI\s+Pilot\s+Agreement|Enterprise\s+Order\s+Form|Short\s+Order\s+Form|Order\s+Form|MSA|MNDA|DPA|POC\s+Agreement|Pilot\s+Agreement|Platform\s+Terms)\s+(.+?)(?:\s+(?:comments?|redlines?|rev\b|edits?|\d)|$)/i);
+  if (m) return m[1].trim().split(/\s+/)[0];
+
   // "Granola_BCV_POC" / "Granola_BCV_MNDA" style (underscores already converted to spaces)
   m = name.match(/^Granola\s+(\w+)\s+(?:POC|MNDA|MSA|DPA|Pilot|Renewal)\b/i);
-  if (m) return m[1].trim();
+  if (m) {
+    const candidate = m[1].trim();
+    if (!/^(?:AI|Enterprise|Short|Data|Platform)\b/i.test(candidate)) return candidate;
+  }
 
   // "Company Granola MSA/Type"
   m = name.match(/^(.+?)\s+Granola\s+(?:MSA|MNDA|DPA|Order|Enterprise|POC|Pilot|Renewal|Data)\b/i);
   if (m) return m[1].trim();
 
   // "Company  Granola …" — space-only separator (e.g. Sprout_Social__Granola after underscore decode)
-  m = name.match(/^([^–-]+?)\s+Granola\b/i);
+  m = name.match(/^([^–-]+)\s+Granola\b/i);
   if (m) return m[1].trim();
 
   // "Granola - Company - …" where next segment isn't a doc-type keyword

@@ -29,8 +29,15 @@ module.exports = async function handler(req, res) {
     sheetKeys.length   ? kv.mget(...sheetKeys)   : Promise.resolve([]),
   ]);
 
-  const webhookContracts = webhookRaw.filter(Boolean);
-  const sheetContracts   = sheetRaw.filter(Boolean);
+  // Unwrap any legacy {EX: null, value: {...}} format from older Redis writes
+  function unwrap(c) {
+    if (!c) return null;
+    if (c.value !== undefined && 'EX' in c) return c.value;
+    return c;
+  }
+
+  const webhookContracts = webhookRaw.map(unwrap).filter(c => c && c.name);
+  const sheetContracts   = sheetRaw.map(unwrap).filter(c => c && c.name);
 
   // ── Merge: sheet is primary; webhook wins only when it has more turns ──────
   const merged = [...sheetContracts];
