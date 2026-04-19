@@ -4,6 +4,7 @@
   "description": "Dashboard for tracking how long contracts spend with Elaine during the internal approval loop.",
   "main": "index.js",
   "scripts": {
+    "dev": "vercel dev --yes",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -20,5 +21,8 @@
   "homepage": "https://github.com/folafcoker/legal-velocity#readme",
   "dependencies": {
     "@upstash/redis": "^1.37.0"
+  },
+  "devDependencies": {
+    "vercel": "^51.7.0"
   }
 }
