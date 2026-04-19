@@ -185,6 +185,9 @@ html, body {
 .chip.active {
   background: var(--txt); border-color: var(--txt); color: var(--bg);
 }
+.chip.sla-active {
+  background: var(--bad); border-color: var(--bad); color: #fff;
+}
 .chip-count {
   font-size: 10px; opacity: 0.65; font-weight: 400;
 }
@@ -969,6 +972,10 @@ function daysFor(turn) {
 function daysClass(d) {
   return d <= 3 ? "fast" : d <= 7 ? "warn" : "slow";
 }
+const SLA_HOURS = 48;
+function slaClass(totalH) {
+  return totalH <= SLA_HOURS ? "fast" : "slow";
+}
 function fmtDate(s) {
   return new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
@@ -998,9 +1005,9 @@ function contractAvg(c) {
 function globalAvg() {
   return fmtAvg(CONTRACTS.flatMap(c => c.turns).filter(t => t.returnedDate));
 }
-// Render a duration badge: "2d (38h)"
-function durHTML(dur, extraCls) {
-  const cls = extraCls || daysClass(dur.totalH / 24);
+// Render a duration badge: "2d (38h)" — coloured by SLA (48h threshold)
+function durHTML(dur) {
+  const cls = slaClass(dur.totalH);
   const hStr = `<span class="dur-hours">(${dur.totalH}h)</span>`;
   return `<div class="days-wrap"><span class="days-num ${cls}">${dur.d}</span><span class="days-unit">d</span>${hStr}</div>`;
 }
@@ -1063,6 +1070,10 @@ function reqListHTML(reqs) {
 //  Filter state
 // ─────────────────────────────────────────────────────
 const activeFilters = new Set();
+let slaFilterActive = false;
+function contractBreachesSLA(c) {
+  return c.turns.some(t => { const dur = durationFor(t); return dur && dur.totalH > SLA_HOURS; });
+}
 
 // Canonical type groups — maps display label → array of counterparty values that match
 const TYPE_GROUPS = [
@@ -1077,6 +1088,8 @@ function filteredContracts() {
   let list = activeFilters.size
     ? CONTRACTS.filter(c => TYPE_GROUPS.filter(g => activeFilters.has(g.label)).some(g => g.match(c)))
     : [...CONTRACTS];
+
+  if (slaFilterActive) list = list.filter(contractBreachesSLA);
 
   // Sort: live+open → any open → closed, each group newest first
   list.sort((a, b) => {
@@ -1123,9 +1136,25 @@ function buildFilters() {
     bar.insertBefore(chip, clearBtn);
   });
 
+  // SLA breach chip
+  const slaChipEl = document.createElement("span");
+  slaChipEl.id = "sla-chip";
+  slaChipEl.className = "chip";
+  const slaCount = CONTRACTS.filter(contractBreachesSLA).length;
+  slaChipEl.innerHTML = `SLA breach <span class="chip-count">${slaCount}</span>`;
+  slaChipEl.addEventListener("click", () => {
+    slaFilterActive = !slaFilterActive;
+    slaChipEl.classList.toggle("active", slaFilterActive);
+    slaChipEl.classList.toggle("sla-active", slaFilterActive);
+    clearBtn.classList.toggle("hidden", activeFilters.size === 0 && !slaFilterActive);
+    render();
+  });
+  bar.insertBefore(slaChipEl, clearBtn);
+
   clearBtn.addEventListener("click", () => {
     activeFilters.clear();
-    bar.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+    slaFilterActive = false;
+    bar.querySelectorAll(".chip").forEach(c => c.classList.remove("active", "sla-active"));
     clearBtn.classList.add("hidden");
     render();
   });
@@ -1382,6 +1411,11 @@ async function loadLiveData() {
         const count = CONTRACTS.filter(c => group.match(c)).length;
         chip.innerHTML = `${group.label}<span class="chip-count">${count}</span>`;
       });
+      const slaChipEl = document.getElementById("sla-chip");
+      if (slaChipEl) {
+        const slaCount = CONTRACTS.filter(contractBreachesSLA).length;
+        slaChipEl.innerHTML = `SLA breach <span class="chip-count">${slaCount}</span>`;
+      }
 
       render();
 
