@@ -12,34 +12,38 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store, no-cache');
 
-  // ── Webhook contracts (live, take precedence) ──────────────────────────────
-  const webhookIds       = (await kv.get('contract_ids'))       || [];
-  const webhookContracts = (await Promise.all(
-    webhookIds.map(id => kv.get(`contract:${id}`))
-  )).filter(Boolean);
+  // ── Fetch all ID lists in parallel ────────────────────────────────────────
+  const [webhookIds, sheetIds, lastUpdated, lastSynced] = await Promise.all([
+    kv.get('contract_ids').then(v => v || []),
+    kv.get('sheet:contract_ids').then(v => v || []),
+    kv.get('last_updated'),
+    kv.get('sheet:last_synced'),
+  ]);
 
-  // ── Sheet-synced contracts ─────────────────────────────────────────────────
-  const sheetIds       = (await kv.get('sheet:contract_ids'))   || [];
-  const sheetContracts = (await Promise.all(
-    sheetIds.map(id => kv.get(`sheet:contract:${id}`))
-  )).filter(Boolean);
+  // ── Batch-fetch all contracts in two mget calls ───────────────────────────
+  const webhookKeys = webhookIds.map(id => `contract:${id}`);
+  const sheetKeys   = sheetIds.map(id => `sheet:contract:${id}`);
 
-  // ── Merge: sheet is primary source; webhook adds/updates only where it has
-  //    more turns (i.e. has captured events not yet in the sheet) ────────────
+  const [webhookRaw, sheetRaw] = await Promise.all([
+    webhookKeys.length ? kv.mget(...webhookKeys) : Promise.resolve([]),
+    sheetKeys.length   ? kv.mget(...sheetKeys)   : Promise.resolve([]),
+  ]);
+
+  const webhookContracts = webhookRaw.filter(Boolean);
+  const sheetContracts   = sheetRaw.filter(Boolean);
+
+  // ── Merge: sheet is primary; webhook wins only when it has more turns ──────
   const merged = [...sheetContracts];
   for (const wc of webhookContracts) {
-    const idx = merged.findIndex(c => c.name === wc.name || c.id === wc.id);
+    const wcTurns  = wc.turns || [];
+    const idx      = merged.findIndex(c => c.name === wc.name || c.id === wc.id);
     if (idx >= 0) {
-      // Keep whichever has more turns — sheet usually has full history,
-      // webhook wins only when it's captured more recent events
-      if (wc.turns.length > merged[idx].turns.length) merged[idx] = wc;
+      const existing = merged[idx].turns || [];
+      if (wcTurns.length > existing.length) merged[idx] = wc;
     } else {
       merged.push(wc);
     }
   }
-
-  const lastUpdated  = await kv.get('last_updated');
-  const lastSynced   = await kv.get('sheet:last_synced');
 
   return res.status(200).json({
     contracts:   merged,
