@@ -660,8 +660,8 @@ function renderWoWChart(breaches) {
     const y = yFor(t);
     return `<line x1="${PAD_LEFT}" y1="${y}" x2="${PAD_LEFT + weeks.length * COL_W}" y2="${y}"
       stroke="${t === 0 ? '#ccc' : '#f0f0f0'}" stroke-width="1"/>
-      <text x="${PAD_LEFT - 5}" y="${y + 4}" text-anchor="end"
-        font-family="'Fira Code', monospace" font-size="9" fill="#ccc">${t}</text>`;
+      ${t > 0 ? `<text x="${PAD_LEFT + 4}" y="${y - 3}" text-anchor="start"
+        font-family="'Fira Code', monospace" font-size="9" fill="#ccc">${t}</text>` : ''}`;
   }).join('');
 
   const BAR_W = Math.round(COL_W * 0.55);
