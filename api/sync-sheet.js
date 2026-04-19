@@ -96,6 +96,10 @@ function normalizeName(raw) {
   m = name.match(/^(.+?)\s+Granola\s+(?:MSA|MNDA|DPA|Order|Enterprise|POC|Pilot|Renewal|Data)\b/i);
   if (m) return m[1].trim();
 
+  // "Company  Granola …" — space-only separator (e.g. Sprout_Social__Granola after underscore decode)
+  m = name.match(/^([^–-]+?)\s+Granola\b/i);
+  if (m) return m[1].trim();
+
   // "Granola - Company - …" where next segment isn't a doc-type keyword
   m = name.match(/^Granola\s*[-–]\s*(.+?)\s*[-–]/i);
   if (m) {

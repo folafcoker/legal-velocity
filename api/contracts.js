@@ -24,12 +24,18 @@ module.exports = async function handler(req, res) {
     sheetIds.map(id => kv.get(`sheet:contract:${id}`))
   )).filter(Boolean);
 
-  // ── Merge: sheet data as base, webhook data overrides by name ─────────────
+  // ── Merge: sheet is primary source; webhook adds/updates only where it has
+  //    more turns (i.e. has captured events not yet in the sheet) ────────────
   const merged = [...sheetContracts];
   for (const wc of webhookContracts) {
     const idx = merged.findIndex(c => c.name === wc.name || c.id === wc.id);
-    if (idx >= 0) merged[idx] = wc;
-    else          merged.push(wc);
+    if (idx >= 0) {
+      // Keep whichever has more turns — sheet usually has full history,
+      // webhook wins only when it's captured more recent events
+      if (wc.turns.length > merged[idx].turns.length) merged[idx] = wc;
+    } else {
+      merged.push(wc);
+    }
   }
 
   const lastUpdated  = await kv.get('last_updated');
