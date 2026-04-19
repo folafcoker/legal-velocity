@@ -974,7 +974,7 @@ function daysClass(d) {
 }
 const SLA_HOURS = 48;
 function slaClass(totalH) {
-  return totalH <= SLA_HOURS ? "fast" : "slow";
+  return totalH <= 24 ? "fast" : totalH <= SLA_HOURS ? "warn" : "slow";
 }
 function fmtDate(s) {
   return new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
