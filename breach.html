@@ -177,6 +177,71 @@ html, body {
 .col-headers span:not(:first-child) { text-align: right; }
 
 .loading { color: var(--txt-3); font-size: 12px; padding: 24px 0; }
+
+/* ── Modal ───────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.25);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-panel {
+  background: #fff;
+  border-radius: 10px;
+  width: min(520px, 92vw);
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.13);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px 13px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.modal-title { font-size: 13px; font-weight: 500; letter-spacing: -0.1px; }
+.modal-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; color: var(--txt-3); line-height: 1;
+  padding: 0 0 0 12px;
+}
+.modal-close:hover { color: var(--txt); }
+.modal-body { overflow-y: auto; padding: 4px 0 12px; }
+.modal-row {
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.modal-row:last-child { border-bottom: none; }
+.modal-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 3px;
+}
+.modal-name   { font-size: 13px; font-weight: 500; }
+.modal-dur    { font-family: var(--mono); font-size: 11px; color: var(--bad); white-space: nowrap; }
+.modal-meta   { font-size: 11px; color: var(--txt-3); margin-bottom: 8px; }
+.modal-nudge-list { margin-top: 8px; background: var(--sub-bg); border-radius: 6px; padding: 2px 0; }
+.modal-nudge {
+  display: grid;
+  grid-template-columns: 72px 58px 1fr;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+  align-items: baseline;
+}
+.modal-nudge:last-child { border-bottom: none; }
+.modal-no-nudge { font-size: 11px; color: var(--txt-3); margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -215,6 +280,18 @@ html, body {
   </div>
 
 </div>
+
+<!-- Week detail modal -->
+<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title"></span>
+      <button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
 <script>
 // ─────────────────────────────────────────────────────
 //  SEED DATA (same as index.html — overridden by live API)
@@ -460,6 +537,13 @@ const REQUESTS = [
 // ─────────────────────────────────────────────────────
 const SLA_HOURS = 48;
 
+function weekStart(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const day = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() - (day === 0 ? 6 : day - 1));
+  return d;
+}
+
 const US_HOLIDAYS = new Set([
   '2026-01-01','2026-01-19','2026-02-16','2026-05-25','2026-06-19',
   '2026-07-03','2026-09-07','2026-10-12','2026-11-11','2026-11-26','2026-12-25',
@@ -530,20 +614,17 @@ function tagLabel(type) {
 // ─────────────────────────────────────────────────────
 //  WoW chart  —  vertical columns, x = week, y = count
 // ─────────────────────────────────────────────────────
-function renderWoWChart(breaches) {
-  const PAD_LEFT  = 36;   // y-axis label space
-  const PAD_RIGHT = 12;
-  const PAD_TOP   = 10;
-  const PAD_BOT   = 44;   // room for rotated week labels
-  const BAR_AREA_H = 140; // max bar height in px
-  const COL_W     = 44;   // px per week column
+let _wowBreaches = [];
 
-  function weekStart(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00Z');
-    const day = d.getUTCDay();
-    d.setUTCDate(d.getUTCDate() - (day === 0 ? 6 : day - 1));
-    return d;
-  }
+function renderWoWChart(breaches) {
+  _wowBreaches = breaches;
+
+  const PAD_LEFT   = 36;
+  const PAD_RIGHT  = 12;
+  const PAD_TOP    = 10;
+  const PAD_BOT    = 44;
+  const BAR_AREA_H = 140;
+  const COL_W      = 44;
 
   const cutoff  = new Date('2026-01-19T00:00:00Z');
   const endDate = new Date('2026-04-21T00:00:00Z');
@@ -569,11 +650,10 @@ function renderWoWChart(breaches) {
   const maxCount = Math.max(...weeks.map(wk => wk.count), 1);
   const totalW   = PAD_LEFT + weeks.length * COL_W + PAD_RIGHT;
   const totalH   = PAD_TOP + BAR_AREA_H + PAD_BOT;
-  const baseY    = PAD_TOP + BAR_AREA_H; // y-coordinate of x-axis
+  const baseY    = PAD_TOP + BAR_AREA_H;
 
   function yFor(n) { return baseY - (n / maxCount) * BAR_AREA_H; }
 
-  // Y-axis grid lines at integer counts
   const yTicks = [];
   for (let t = 0; t <= maxCount; t++) yTicks.push(t);
   const gridLines = yTicks.map(t => {
@@ -584,24 +664,30 @@ function renderWoWChart(breaches) {
         font-family="'Fira Code', monospace" font-size="9" fill="#ccc">${t}</text>`;
   }).join('');
 
-  // Columns
   const BAR_W = Math.round(COL_W * 0.55);
   const cols = weeks.map((wk, i) => {
-    const cx   = PAD_LEFT + i * COL_W + COL_W / 2;
-    const barH = (wk.count / maxCount) * BAR_AREA_H;
-    const barX = cx - BAR_W / 2;
-    const barY = baseY - barH;
+    const cx    = PAD_LEFT + i * COL_W + COL_W / 2;
+    const barH  = (wk.count / maxCount) * BAR_AREA_H;
+    const barX  = cx - BAR_W / 2;
+    const barY  = baseY - barH;
+    const clickable = wk.count > 0;
+    const safeKey   = wk.key.replace(/'/g, '');
+    const safeLabel = wk.label.replace(/'/g, '');
     return `
-      ${wk.count > 0
-        ? `<rect x="${barX}" y="${barY}" width="${BAR_W}" height="${barH}" rx="2"
-            fill="#ca8a04" opacity="0.85"/>
-           <text x="${cx}" y="${barY - 4}" text-anchor="middle"
-            font-family="'Fira Code', monospace" font-size="9" fill="#ca8a04">${wk.count}</text>`
-        : ''
-      }
-      <text x="${cx}" y="${baseY + 14}" text-anchor="end"
-        transform="rotate(-45, ${cx}, ${baseY + 14})"
-        font-family="'Inter', sans-serif" font-size="9.5" fill="#bbb">${wk.label}</text>`;
+      <g ${clickable ? `onclick="openWeekModal('${safeKey}','${safeLabel}')" style="cursor:pointer"` : ''}>
+        ${clickable
+          ? `<rect x="${barX}" y="${barY}" width="${BAR_W}" height="${barH}" rx="2"
+               fill="#ca8a04" opacity="0.85"/>
+             <rect x="${PAD_LEFT + i * COL_W}" y="${PAD_TOP}" width="${COL_W}" height="${BAR_AREA_H}"
+               fill="transparent"/>
+             <text x="${cx}" y="${barY - 4}" text-anchor="middle"
+               font-family="'Fira Code', monospace" font-size="9" fill="#ca8a04">${wk.count}</text>`
+          : ''
+        }
+        <text x="${cx}" y="${baseY + 14}" text-anchor="end"
+          transform="rotate(-45, ${cx}, ${baseY + 14})"
+          font-family="'Inter', sans-serif" font-size="9.5" fill="#bbb">${wk.label}</text>
+      </g>`;
   }).join('');
 
   const svg = `<svg width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
@@ -610,6 +696,52 @@ function renderWoWChart(breaches) {
   </svg>`;
 
   document.getElementById('wow-chart').innerHTML = svg;
+}
+
+// ─────────────────────────────────────────────────────
+//  Week modal
+// ─────────────────────────────────────────────────────
+function openWeekModal(weekKey, weekLabel) {
+  const weekBreaches = _wowBreaches.filter(b => {
+    const ws = weekStart(b.turn.sentToElaine);
+    return ws.toISOString().slice(0, 10) === weekKey;
+  });
+
+  document.getElementById('modal-title').textContent =
+    `Week of ${weekLabel} — ${weekBreaches.length} breach${weekBreaches.length !== 1 ? 'es' : ''}`;
+
+  document.getElementById('modal-body').innerHTML = weekBreaches.map(b => {
+    const sentBy = b.turn.sentBy || '—';
+    const nudges = requestsForTurn(b.contract.name, b.turn.sentAt, b.turn.returnedAt);
+    const nudgesHTML = nudges.length
+      ? `<div class="modal-nudge-list">${nudges.map(n =>
+          `<div class="modal-nudge">
+            <span class="nudge-dt">${n.dt}</span>
+            <span class="nudge-who">${n.requester}</span>
+            <span class="nudge-note">
+              <span class="nudge-tag ${tagClass(n.type)}">${tagLabel(n.type)}</span>${n.note}
+            </span>
+          </div>`).join('')}</div>`
+      : `<div class="modal-no-nudge">No Slack nudges logged</div>`;
+
+    return `<div class="modal-row">
+      <div class="modal-row-top">
+        <span class="modal-name">${b.contract.name}
+          <span style="font-size:10px;font-weight:400;color:var(--txt-3);margin-left:5px">Turn ${b.turnIdx + 1}</span>
+        </span>
+        <span class="modal-dur">${b.dur.totalH}h</span>
+      </div>
+      <div class="modal-meta">Sent by ${sentBy} · ${b.turn.sentAt || b.turn.sentToElaine}</div>
+      ${nudgesHTML}
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
 }
 
 // ─────────────────────────────────────────────────────
