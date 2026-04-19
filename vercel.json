@@ -1,0 +1,6 @@
+{
+  "routes": [
+    { "src": "/breach", "dest": "/breach.html" },
+    { "src": "/api/(.*)", "dest": "/api/$1" }
+  ]
+}
