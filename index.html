@@ -295,6 +295,69 @@ html, body {
   color: #b45309;
   background: #fef3c7;
 }
+
+/* ── Sync controls ───────────── */
+.sync-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 6px; flex-wrap: wrap;
+}
+.sync-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 500; color: var(--txt-2);
+  background: none; border: 1.5px solid var(--line);
+  border-radius: 6px; padding: 3px 9px;
+  cursor: pointer; font-family: var(--font);
+  transition: border-color 0.12s, color 0.12s;
+}
+.sync-btn:hover:not(:disabled) { border-color: #94a3b8; color: var(--txt); }
+.sync-btn:disabled { opacity: 0.45; cursor: default; }
+.sync-btn svg { flex-shrink: 0; }
+.sync-btn.spinning svg { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.prompt-btn {
+  font-size: 11px; color: var(--txt-3);
+  background: none; border: none; cursor: pointer;
+  font-family: var(--font); padding: 0;
+  text-decoration: underline; text-decoration-style: dotted;
+  text-underline-offset: 2px; transition: color 0.1s;
+}
+.prompt-btn:hover { color: var(--txt); }
+.sync-status { font-size: 11px; color: var(--txt-3); }
+.sync-status.err { color: var(--bad); }
+
+/* ── Prompt modal ────────────── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.25); z-index: 100;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #fff; border-radius: 10px;
+  padding: 24px; max-width: 520px; width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+.modal h3 { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+.modal p  { font-size: 12px; color: var(--txt-2); margin-bottom: 12px; line-height: 1.55; }
+.modal textarea {
+  width: 100%; font-family: var(--mono); font-size: 11px;
+  color: var(--txt); background: var(--sub-bg);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px; resize: none; height: 156px; line-height: 1.6;
+}
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.modal-copy-btn {
+  font-size: 12px; font-weight: 500;
+  background: var(--txt); color: #fff;
+  border: none; border-radius: 6px;
+  padding: 6px 14px; cursor: pointer; font-family: var(--font);
+}
+.modal-close-btn {
+  font-size: 12px; color: var(--txt-3);
+  background: none; border: 1.5px solid var(--line);
+  border-radius: 6px; padding: 5px 12px; cursor: pointer; font-family: var(--font);
+}
 </style>
 </head>
 <body>
@@ -303,12 +366,36 @@ html, body {
   <div class="meta">
     <div class="meta-left">
       <h1>Elaine — Approval Turnaround</h1>
-      <p>Time from approval request to Elaine → returned to sales rep</p>
+      <p>Time from approval request to Elaine → returned to sales rep (business days, excl. weekends &amp; US holidays)</p>
       <p id="live-status" style="margin-top:4px;font-size:11px;color:var(--txt-3)"></p>
+      <div class="sync-bar">
+        <button class="sync-btn" id="sync-btn" onclick="syncFromSheet()">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" id="sync-icon">
+            <path d="M10.5 6A4.5 4.5 0 1 1 6 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            <path d="M6 1.5 8 3.5M6 1.5 8-.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Sync from sheet
+        </button>
+        <button class="prompt-btn" onclick="openPromptModal()">Copy Juro prompt</button>
+        <span class="sync-status" id="sync-status"></span>
+      </div>
     </div>
     <div class="meta-right">
       <div class="avg-num" id="avg-num">—</div>
       <div class="avg-label" id="avg-label">avg days</div>
+    </div>
+  </div>
+
+  <!-- Prompt modal -->
+  <div class="modal-overlay" id="modal-overlay" onclick="closePromptModal(event)">
+    <div class="modal">
+      <h3>Copy this prompt to Claude</h3>
+      <p>Paste into Claude and it will use the Chrome extension to scrape the Juro activity log and update the sheet. Then click <strong>Sync from sheet</strong> to pull the latest data in.</p>
+      <textarea id="juro-prompt" readonly></textarea>
+      <div class="modal-actions">
+        <button class="modal-close-btn" onclick="closePromptModal()">Close</button>
+        <button class="modal-copy-btn" id="copy-btn" onclick="copyPrompt()">Copy to clipboard</button>
+      </div>
     </div>
   </div>
 
@@ -329,7 +416,7 @@ html, body {
     <span>Contract</span>
     <span style="text-align:right">Sent to Elaine</span>
     <span style="text-align:right">Elaine returned</span>
-    <span style="text-align:right">Days</span>
+    <span style="text-align:right">Bus. days</span>
   </div>
 
   <div id="list"></div>
@@ -808,15 +895,60 @@ function parseTs(s) {
   if (!s) return null;
   try { return new Date(s + " 2026"); } catch(e) { return null; }
 }
-// Returns fractional hours between two timestamp strings
+
+// ─── Business-day helpers ─────────────────────────────
+// US Federal holidays for 2026 (YYYY-MM-DD, UTC).
+// Jul 4 falls on a Saturday so the observed holiday is Jul 3 (Friday).
+const US_HOLIDAYS = new Set([
+  '2026-01-01', // New Year's Day
+  '2026-01-19', // Martin Luther King Jr. Day
+  '2026-02-16', // Presidents' Day
+  '2026-05-25', // Memorial Day
+  '2026-06-19', // Juneteenth National Independence Day
+  '2026-07-03', // Independence Day (observed)
+  '2026-09-07', // Labor Day
+  '2026-10-12', // Columbus Day
+  '2026-11-11', // Veterans Day
+  '2026-11-26', // Thanksgiving Day
+  '2026-12-25', // Christmas Day
+]);
+
+function isBusinessDay(utcDayStartMs) {
+  const d   = new Date(utcDayStartMs);
+  const dow = d.getUTCDay(); // 0 = Sun, 6 = Sat
+  if (dow === 0 || dow === 6) return false;
+  return !US_HOLIDAYS.has(d.toISOString().slice(0, 10));
+}
+
+// Counts hours in [startMs, endMs) that fall on business days,
+// excluding weekends and US federal holidays (UTC day boundaries).
+function businessHoursBetween(startMs, endMs) {
+  if (endMs <= startMs) return 0;
+  const MS_PER_DAY = 86400000;
+  let bh = 0;
+  let dayStart = Math.floor(startMs / MS_PER_DAY) * MS_PER_DAY;
+  while (dayStart < endMs) {
+    if (isBusinessDay(dayStart)) {
+      const lo = Math.max(startMs, dayStart);
+      const hi = Math.min(endMs, dayStart + MS_PER_DAY);
+      if (hi > lo) bh += (hi - lo) / 3600000;
+    }
+    dayStart += MS_PER_DAY;
+  }
+  return bh;
+}
+
+// Returns fractional business hours between two timestamp strings
 function hoursBetweenTs(sentAt, returnedAt) {
   const a = parseTs(sentAt), b = parseTs(returnedAt);
   if (!a || !b) return null;
-  return (b - a) / 3600000;
+  return businessHoursBetween(a.getTime(), b.getTime());
 }
-// Fallback: days from date strings
+// Fallback: business days from date strings
 function daysBetween(a, b) {
-  return Math.round((new Date(b) - new Date(a)) / 86400000);
+  const startMs = new Date(a).getTime();
+  const endMs   = new Date(b).getTime();
+  return Math.round(businessHoursBetween(startMs, endMs) / 24);
 }
 // Returns {d, h} for a turn — using precise timestamps if available
 function durationFor(turn) {
@@ -1149,22 +1281,99 @@ loadFeed();
 setInterval(loadFeed, 60000);
 
 // ─────────────────────────────────────────────────────
-//  Live data — overlay webhook-driven contracts from KV
+//  Sync from Google Sheet
 // ─────────────────────────────────────────────────────
-(async () => {
+async function syncFromSheet() {
+  const btn    = document.getElementById('sync-btn');
+  const icon   = document.getElementById('sync-icon');
+  const status = document.getElementById('sync-status');
+
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  status.className = 'sync-status';
+  status.textContent = 'Syncing…';
+
+  try {
+    const res = await fetch('/api/sync-sheet', { method: 'POST' });
+    if (!res.ok) {
+      const { error, detail } = await res.json().catch(() => ({}));
+      throw new Error(error || detail || `HTTP ${res.status}`);
+    }
+    const { synced, lastSynced } = await res.json();
+
+    // Re-fetch live data and re-render
+    await loadLiveData();
+
+    const d   = new Date(lastSynced);
+    const fmt = d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    status.textContent = `Synced ${synced} contracts · ${fmt}`;
+  } catch (e) {
+    status.className  = 'sync-status err';
+    status.textContent = `Sync failed: ${e.message}`;
+    console.error('[sync]', e);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  Juro prompt modal
+// ─────────────────────────────────────────────────────
+const JURO_PROMPT = `Please use the Chrome extension to go to the Juro activity log.
+
+Extract all approval events and add any new rows to the TOP of this Google Sheet (row 2, just after the header):
+https://docs.google.com/spreadsheets/d/1NSMijZuSiDZqvo9DKBP-xn7OxbjzDWqgc0diEa13_HY
+
+Column format (match existing rows exactly):
+Contract Name | Approver | Sender | Date | Time | Email
+
+Rules:
+- Approver and Sender should be the same person's full name
+- Date format: "18 Apr" (no year, unless it's not 2026)
+- Time format: "14:58" (24-hour)
+- Email: the approver's granola.so email address
+- Only add rows that aren't already in the sheet
+- Newest events go at the TOP`;
+
+function openPromptModal() {
+  document.getElementById('juro-prompt').value = JURO_PROMPT;
+  document.getElementById('modal-overlay').classList.add('open');
+  document.getElementById('copy-btn').textContent = 'Copy to clipboard';
+}
+
+function closePromptModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function copyPrompt() {
+  navigator.clipboard.writeText(JURO_PROMPT).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy to clipboard'; }, 2000);
+  });
+}
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('modal-overlay').classList.remove('open');
+});
+
+// ─────────────────────────────────────────────────────
+//  Live data — load from KV (webhook + sheet-synced)
+// ─────────────────────────────────────────────────────
+async function loadLiveData() {
   const statusEl = document.getElementById('live-status');
   try {
     const res = await fetch('/api/contracts');
     if (!res.ok) throw new Error(`API ${res.status}`);
-    const { contracts: live, lastUpdated } = await res.json();
+    const { contracts: live, lastUpdated, lastSynced } = await res.json();
 
     if (live && live.length > 0) {
-      // Merge: live contracts replace or extend the seed data
-      for (const c of live) {
-        const idx = CONTRACTS.findIndex(x => x.id === c.id || x.name === c.name);
-        if (idx >= 0) CONTRACTS[idx] = c;
-        else CONTRACTS.push(c);
-      }
+      // Replace seed data entirely with API data
+      CONTRACTS.length = 0;
+      for (const c of live) CONTRACTS.push(c);
 
       // Refresh filter chip counts
       document.querySelectorAll('.chip[data-group]').forEach(chip => {
@@ -1176,21 +1385,30 @@ setInterval(loadFeed, 60000);
 
       render();
 
-      // Show last-updated timestamp
-      if (lastUpdated && statusEl) {
-        const d = new Date(lastUpdated);
-        const fmt = d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-        statusEl.innerHTML = `<span class="live-badge" style="display:inline">LIVE</span> Last updated ${fmt}`;
+      // Status line: show webhook live badge + sheet sync time
+      if (statusEl) {
+        const parts = [];
+        if (lastUpdated) {
+          const d   = new Date(lastUpdated);
+          const fmt = d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          parts.push(`<span class="live-badge" style="display:inline">LIVE</span> Webhook: ${fmt}`);
+        }
+        if (lastSynced) {
+          const d   = new Date(lastSynced);
+          const fmt = d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          parts.push(`Sheet synced: ${fmt}`);
+        }
+        statusEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
       }
     } else if (statusEl) {
-      // API reachable but no webhook data yet — show seed data silently
       statusEl.textContent = '';
     }
   } catch (e) {
-    // API unreachable — seed data already rendered, show nothing
     console.info('[live] Using seed data:', e.message);
   }
-})();
+}
+
+loadLiveData();
 </script>
 </body>
 </html>
