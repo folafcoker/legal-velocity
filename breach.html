@@ -668,6 +668,17 @@ function renderStats(breaches, allTurns) {
     requestsForTurn(b.contract.name, b.turn.sentAt, b.turn.returnedAt).length > 0
   ).length;
 
+  // Breaches where the turn was sent to Elaine in the last 2 weeks of March (18 Mar – 31 Mar)
+  const lateMarchStart = new Date('2026-03-18T00:00:00Z');
+  const lateMarchEnd   = new Date('2026-04-01T00:00:00Z');
+  const lateMarchBreaches = breaches.filter(b => {
+    const d = new Date(b.turn.sentToElaine);
+    return d >= lateMarchStart && d < lateMarchEnd;
+  });
+  const lateMarchPct = breaches.length
+    ? Math.round(lateMarchBreaches.length / breaches.length * 100)
+    : 0;
+
   document.getElementById('stats').innerHTML = `
     <div class="stat-card">
       <div class="stat-val red">${breaches.length}</div>
@@ -688,6 +699,10 @@ function renderStats(breaches, allTurns) {
     <div class="stat-card">
       <div class="stat-val">${nudgedTurns}</div>
       <div class="stat-label">turns had Slack chases</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val warn">${lateMarchPct}%</div>
+      <div class="stat-label">of breaches in late Mar (18–31)</div>
     </div>`;
 }
 
