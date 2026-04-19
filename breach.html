@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SLA Breach Analysis — Granola</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --txt:    #111;
+  --txt-2:  #888;
+  --txt-3:  #bbb;
+  --line:   #ebebeb;
+  --sub-bg: #fafafa;
+  --good:   #16a34a;
+  --warn:   #ca8a04;
+  --bad:    #dc2626;
+  --font:   'Inter', sans-serif;
+  --mono:   'Fira Code', monospace;
+}
+
+html, body {
+  font-family: var(--font);
+  background: #fff;
+  color: var(--txt);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+/* ── Nav ─────────────────── */
+.nav-back {
+  margin-bottom: 32px;
+}
+.nav-back a {
+  font-size: 12px;
+  color: var(--txt-3);
+  text-decoration: none;
+  transition: color 0.1s;
+}
+.nav-back a:hover { color: var(--txt); }
+
+/* ── Header ─────────────── */
+.page-header { margin-bottom: 28px; }
+.page-header h1 { font-size: 15px; font-weight: 500; letter-spacing: -0.2px; }
+.page-header p  { font-size: 12px; color: var(--txt-2); margin-top: 4px; line-height: 1.5; }
+
+/* ── Stat chips ─────────── */
+.stat-row {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 36px;
+}
+.stat-card {
+  background: var(--sub-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 130px;
+}
+.stat-val {
+  font-family: var(--mono);
+  font-size: 22px; font-weight: 400;
+  letter-spacing: -0.5px; line-height: 1;
+  color: var(--txt);
+}
+.stat-val.red  { color: var(--bad); }
+.stat-val.warn { color: var(--warn); }
+.stat-label {
+  font-size: 11px; color: var(--txt-3);
+  margin-top: 5px; line-height: 1.4;
+}
+
+/* ── Section ─────────────── */
+.section { margin-bottom: 40px; }
+.section-label {
+  font-size: 11px; font-weight: 500;
+  color: var(--txt-3); letter-spacing: 0.3px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ── Chart ───────────────── */
+#chart svg { width: 100%; display: block; }
+.chart-wrap { overflow-x: auto; }
+
+/* ── Breach list ──────────── */
+.breach-item {
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+.breach-item:last-child { border-bottom: none; }
+
+.breach-top {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 70px;
+  align-items: start;
+  gap: 8px;
+}
+
+.breach-name { font-size: 13px; font-weight: 500; }
+.breach-sub  { font-size: 11.5px; color: var(--txt-2); margin-top: 2px; }
+
+.breach-ts {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--txt-2); text-align: right;
+  display: block; line-height: 1.6;
+}
+.breach-ts-label { font-size: 10px; color: var(--txt-3); text-align: right; display: block; }
+
+.dur-badge {
+  text-align: right;
+}
+.dur-num {
+  font-family: var(--mono); font-size: 20px;
+  font-weight: 400; letter-spacing: -0.5px;
+  color: var(--bad); line-height: 1;
+}
+.dur-num.warn { color: var(--warn); }
+.dur-unit { font-family: var(--mono); font-size: 11px; color: var(--txt-3); }
+.dur-hours { font-family: var(--mono); font-size: 10px; color: var(--txt-3); display: block; margin-top: 1px; }
+
+/* ── Nudges ──────────────── */
+.nudge-list {
+  margin-top: 10px;
+  background: var(--sub-bg);
+  border-radius: 6px;
+  padding: 2px 0;
+}
+.nudge-item {
+  display: grid;
+  grid-template-columns: 72px 58px 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+}
+.nudge-item:last-child { border-bottom: none; }
+.nudge-dt   { font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); }
+.nudge-who  { font-weight: 500; color: var(--txt); }
+.nudge-note { color: var(--txt-2); line-height: 1.45; }
+.nudge-tag {
+  display: inline-block;
+  font-size: 10px; font-weight: 500;
+  padding: 1px 6px; border-radius: 8px;
+  margin-right: 5px; vertical-align: middle;
+  white-space: nowrap;
+}
+.nudge-tag.prio  { background: #fef3c7; color: #92400e; }
+.nudge-tag.guide { background: #ede9fe; color: #5b21b6; }
+.nudge-tag.call  { background: #dcfce7; color: #166534; }
+.nudge-tag.other { background: #f1f5f9; color: #475569; }
+
+.no-nudges { font-size: 11px; color: var(--txt-3); margin-top: 8px; }
+
+.col-headers {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 70px;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px; font-weight: 500;
+  color: var(--txt-3); letter-spacing: 0.2px;
+  margin-bottom: 0;
+}
+.col-headers span:not(:first-child) { text-align: right; }
+
+.loading { color: var(--txt-3); font-size: 12px; padding: 24px 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="nav-back"><a href="/">← Dashboard</a></div>
+
+  <div class="page-header">
+    <h1>SLA Breach Analysis</h1>
+    <p>Turns where Elaine's review exceeded the 48-hour SLA — with Slack nudges logged during each open turn.</p>
+  </div>
+
+  <div class="stat-row" id="stats">
+    <div class="loading">Loading…</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Review duration per turn</div>
+    <div class="chart-wrap" id="chart"><div class="loading">Loading chart…</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Breach details</div>
+    <div class="col-headers">
+      <span>Contract</span>
+      <span>Sent to Elaine</span>
+      <span>Returned</span>
+      <span>Duration</span>
+    </div>
+    <div id="breach-list"><div class="loading">Loading…</div></div>
+  </div>
+
+</div>
+<script>
+// ─────────────────────────────────────────────────────
+//  REQUESTS (Slack nudges log)
+// ─────────────────────────────────────────────────────
+const REQUESTS = [
+  { dt: "25 Feb 18:00", requester: "Camilla",  contracts: ["Pinterest"],                                                             type: "Prioritisation", note: "Prioritise Pinterest DPA and security exhibit in Juro this week; customer offered to use Granola platform terms in return" },
+  { dt: "11 Mar 09:26", requester: "Fola",     contracts: ["Customer.io"],                                                           type: "Guidance",       note: "Sought view on $2M supercap / 24hr breach notice / 20-day sub-processor window. Target signature date 17 Mar. $36k deal / 100 seats" },
+  { dt: "11 Mar 10:31", requester: "Fola",     contracts: ["Customer.io"],                                                           type: "Guidance",       note: "Follow-up: items 1 & 2 resolved with Michael/Camilla. Asked Elaine to weigh in on supercap before next-day call" },
+  { dt: "11 Mar 22:21", requester: "Fola",     contracts: ["Customer.io"],                                                           type: "Prioritisation", note: "Flagged for Elaine before next morning's Customer.io call" },
+  { dt: "12 Mar 15:37", requester: "Fola",     contracts: ["Customer.io"],                                                           type: "Prioritisation", note: "Confirmed aligned and good to go after Elaine's Juro update (Elaine had noted a delay due to another urgent deal)" },
+  { dt: "13 Mar 10:38", requester: "Fola",     contracts: ["Posthog"],                                                               type: "Guidance",       note: "Asked Elaine to draft language protecting PostHog data from being shared with Amplitude (a PostHog competitor used by Granola)" },
+  { dt: "17 Mar 16:57", requester: "Ryan",     contracts: ["Justworks"],                                                             type: "Prioritisation", note: "Of the items in the legal queue could we please prioritize Justworks ($144k) first" },
+  { dt: "18 Mar 20:52", requester: "Camilla",  contracts: ["Checkr"],                                                                type: "Prioritisation", note: "Can you prioritise looking at the Checkr contract please. Elaine: working on Meta first, will turn to it ASAP" },
+  { dt: "19 Mar 17:14", requester: "Ryan",     contracts: ["Justworks", "Checkr"],                                                   type: "Prioritisation", note: "Re-prioritised queue after internal sync: Justworks first then Checkr. Elaine confirmed: got it" },
+  { dt: "23 Mar 13:54", requester: "Camilla",  contracts: ["PandaDoc","Justworks","9Fin","G2","NEA","Posthog","K1","CharlesBank"],    type: "Prioritisation", note: "EOQ sprint priority list: PandaDoc ($80k) / Justworks ($144k) / 9Fin ($50k) / G2 ($60k) / NEA ($20k) / PostHog ($37k) / K1 ($29k) / Charlesbank ($25k). ~$500k from stretch target" },
+  { dt: "24 Mar 14:30", requester: "Ryan",     contracts: ["Justworks"],                                                             type: "Legal call",     note: "Asked if Elaine available 7:30am or 10am next day for call with Justworks legal team. Elaine: working on it now — lots of redlines but able to accept most" },
+  { dt: "24 Mar 16:05", requester: "Fola",     contracts: ["9Fin"],                                                                  type: "Prioritisation", note: "Pricing agreed commercially. Asked if final redline draft could go back today; if not flag so customer expectations can be managed" },
+  { dt: "30 Mar 15:06", requester: "Ryan",     contracts: ["a16z"],                                                                  type: "Prioritisation", note: "Is it possible to look at a16z today — renewal is on April 1. Submitted on behalf of Nick T. Elaine: Yes!" },
+  { dt: "30 Mar 15:09", requester: "Ernesto",  contracts: ["EF Order Form"],                                                         type: "Prioritisation", note: "Two minor redlines; tracking to sign next day. Asked to prioritise alongside a16z. Elaine: Got it" },
+  { dt: "30 Mar 20:12", requester: "Palmer",   contracts: ["Docker"],                                                                type: "Guidance",       note: "Order form to be subservient to Docker's existing MSA/terms. Needed Elaine to check if approach was correct. Elaine: will get to it later today" },
+  { dt: "1 Apr 19:27",  requester: "Palmer",   contracts: ["Red Ventures"],                                                          type: "Guidance",       note: "Shared previous redlines for rider/master MSA covering 3 order forms: RV Home (50 users) / The Points Guy (22 users) / Lonely Planet (1 user)" },
+  { dt: "1 Apr 19:32",  requester: "Bob",      contracts: ["Astronomer.io"],                                                         type: "Guidance",       note: "Asked Elaine to assess whether Astronomer's security redlines were unreasonable or if compromise was possible — security cited as major deal blocker" },
+  { dt: "2 Apr 15:13",  requester: "Palmer",   contracts: ["Red Ventures"],                                                          type: "Guidance",       note: "Asked whether Elaine needed a decision from Bardia/Michael on Section 9.1 in order to proceed" },
+  { dt: "2 Apr 17:53",  requester: "Bob",      contracts: ["Gladly"],                                                                type: "Admin",          note: "First Juro submission from Bob. Asked Elaine to confirm correct submission before targeting EOD Friday close" },
+  { dt: "3 Apr 00:39",  requester: "Bob",      contracts: ["Gladly"],                                                                type: "Prioritisation", note: "Are you still on track to review Gladly today? If not let me know so I can set the right expectations. Elaine: Yes have it open" },
+  { dt: "3 Apr 22:34",  requester: "Bob",      contracts: ["Gladly"],                                                                type: "Prioritisation", note: "How do the latest redlines look? Let me know if this will bleed into next week. Elaine: family emergency — stepped away" },
+  { dt: "6 Apr 18:09",  requester: "Bob",      contracts: ["Gladly"],                                                                type: "Prioritisation", note: "Hope you had a restful weekend! Will you be able to return Gladly redlines today?" },
+  { dt: "7 Apr 16:39",  requester: "Bob",      contracts: ["Gladly"],                                                                type: "Prioritisation", note: "Checking in on Gladly redlines — any update? Totally understand if working through backlog. Elaine: Almost done" },
+  { dt: "7 Apr 17:53",  requester: "Ryan",     contracts: ["Komodo Health"],                                                         type: "Legal call",     note: "Asked if Elaine available Thu 8:30am for 30-min call with Komodo Health legal team. Will share updated redlines in Juro" },
+  { dt: "8 Apr 10:40",  requester: "Michael",  contracts: ["Harvey"],                                                                type: "Prioritisation", note: "Could you please come back to us today on requests above? Also need Harvey redlines today — customer is chasing us" },
+  { dt: "8 Apr 13:17",  requester: "Ernesto",  contracts: ["DevRev"],                                                                type: "Prioritisation", note: "One remaining redline — looked fine. Wanted it returned today to pursue signatures" },
+  { dt: "8 Apr 20:26",  requester: "Ernesto",  contracts: ["Airtable"],                                                              type: "Prioritisation", note: "Customer chasing DPA edits urgently. Monika had done work; asked Elaine when ready. Elaine: have Monica's comments will revert today — and did" },
+  { dt: "8 Apr 21:30",  requester: "Ryan",     contracts: ["Harvey"],                                                                type: "Prioritisation", note: "P1 request — customer wants edits back this week. Uploaded MSA + DPA" },
+  { dt: "8 Apr 22:29",  requester: "Palmer",   contracts: ["Barrenjoey"],                                                            type: "Prioritisation", note: "Quick glance requested while Palmer on live call with them. Single updated redline; jurisdiction already agreed. Elaine turned it around immediately" },
+  { dt: "9 Apr 15:29",  requester: "Bob",      contracts: ["Astronomer.io"],                                                         type: "Legal call",     note: "Asked if Elaine available 10:30am PT for call with Astronomer's legal team on outstanding security items. Elaine: no problem" },
+  { dt: "9 Apr 16:39",  requester: "Palmer",   contracts: ["G2"],                                                                    type: "Prioritisation", note: "Updated G2 redlines submitted. Meeting with customer next Tuesday. Asked Elaine to review before end of week" },
+];
+
+// ─────────────────────────────────────────────────────
+//  Helpers (same as index.html)
+// ─────────────────────────────────────────────────────
+const SLA_HOURS = 48;
+
+const US_HOLIDAYS = new Set([
+  '2026-01-01','2026-01-19','2026-02-16','2026-05-25','2026-06-19',
+  '2026-07-03','2026-09-07','2026-10-12','2026-11-11','2026-11-26','2026-12-25',
+]);
+function isBusinessDay(ms) {
+  const d = new Date(ms), dow = d.getUTCDay();
+  return dow !== 0 && dow !== 6 && !US_HOLIDAYS.has(d.toISOString().slice(0,10));
+}
+function businessHoursBetween(startMs, endMs) {
+  if (endMs <= startMs) return 0;
+  const MS_DAY = 86400000;
+  let bh = 0, dayStart = Math.floor(startMs / MS_DAY) * MS_DAY;
+  while (dayStart < endMs) {
+    if (isBusinessDay(dayStart)) {
+      const lo = Math.max(startMs, dayStart), hi = Math.min(endMs, dayStart + MS_DAY);
+      if (hi > lo) bh += (hi - lo) / 3600000;
+    }
+    dayStart += MS_DAY;
+  }
+  return bh;
+}
+function parseTs(s) {
+  if (!s) return null;
+  try { return new Date(s + " 2026"); } catch(e) { return null; }
+}
+function hoursBetweenTs(sentAt, returnedAt) {
+  const a = parseTs(sentAt), b = parseTs(returnedAt);
+  return (a && b) ? businessHoursBetween(a.getTime(), b.getTime()) : null;
+}
+function durationFor(turn) {
+  if (!turn.returnedDate) return null;
+  const hrs = hoursBetweenTs(turn.sentAt, turn.returnedAt);
+  if (hrs !== null && hrs >= 0) {
+    return { d: Math.floor(hrs/24), h: Math.round(hrs%24), totalH: Math.round(hrs) };
+  }
+  const startMs = new Date(turn.sentToElaine).getTime();
+  const endMs   = new Date(turn.returnedDate).getTime();
+  const bh = businessHoursBetween(startMs, endMs);
+  const d  = Math.round(bh / 24);
+  return { d, h: null, totalH: d * 24 };
+}
+
+function requestsForTurn(contractName, sentAt, returnedAt) {
+  const tStart = parseTs(sentAt);
+  const tEnd   = returnedAt ? parseTs(returnedAt) : new Date(32503680000000);
+  if (!tStart) return [];
+  const cLower = contractName.toLowerCase();
+  return REQUESTS.filter(r => {
+    if (!r.contracts.some(cn => cn.toLowerCase() === cLower)) return false;
+    const rDt = parseTs(r.dt);
+    return rDt && rDt >= tStart && rDt <= tEnd;
+  });
+}
+
+function tagClass(type) {
+  if (/prioriti/i.test(type)) return 'prio';
+  if (/guidance/i.test(type)) return 'guide';
+  if (/legal call/i.test(type)) return 'call';
+  return 'other';
+}
+function tagLabel(type) {
+  if (/prioriti/i.test(type)) return 'Chase';
+  if (/guidance/i.test(type)) return 'Guidance';
+  if (/legal call/i.test(type)) return 'Call';
+  return type;
+}
+
+// ─────────────────────────────────────────────────────
+//  Chart
+// ─────────────────────────────────────────────────────
+function renderChart(breaches) {
+  const LABEL_W  = 156;   // left label column
+  const BAR_AREA = 500;   // bar drawing width
+  const ROW_H    = 30;
+  const BAR_H    = 14;
+  const PAD_TOP  = 6;
+  const PAD_BOT  = 28;    // x-axis label space
+
+  const maxH = Math.max(...breaches.map(b => b.dur.totalH), SLA_HOURS * 1.1);
+  const roundTo = 24;
+  const axisMax = Math.ceil(maxH / roundTo) * roundTo;
+
+  const chartH   = PAD_TOP + breaches.length * ROW_H + PAD_BOT;
+  const totalW   = LABEL_W + BAR_AREA + 10;
+
+  function xFor(h) { return LABEL_W + (h / axisMax) * BAR_AREA; }
+
+  // X-axis ticks at every 24h
+  const ticks = [];
+  for (let t = 0; t <= axisMax; t += 24) ticks.push(t);
+
+  // Grid lines
+  const gridLines = ticks.map(t =>
+    `<line x1="${xFor(t)}" y1="${PAD_TOP}" x2="${xFor(t)}" y2="${PAD_TOP + breaches.length * ROW_H}"
+      stroke="${t === 0 ? '#ccc' : '#f0f0f0'}" stroke-width="${t === 0 ? 1 : 1}"/>`
+  ).join('');
+
+  // SLA target line
+  const slaX = xFor(SLA_HOURS);
+  const slaLine = `
+    <line x1="${slaX}" y1="${PAD_TOP - 2}" x2="${slaX}" y2="${PAD_TOP + breaches.length * ROW_H + 8}"
+      stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <text x="${slaX + 4}" y="${PAD_TOP - 4}" font-family="'Fira Code', monospace" font-size="9"
+      fill="#dc2626" font-weight="500">48h SLA</text>`;
+
+  // Bars
+  const bars = breaches.map((b, i) => {
+    const y   = PAD_TOP + i * ROW_H;
+    const barY = y + (ROW_H - BAR_H) / 2;
+    const w   = (b.dur.totalH / axisMax) * BAR_AREA;
+    const fill = b.dur.totalH > SLA_HOURS ? '#dc2626' : '#ca8a04';
+    const label = b.contract.name.length > 18
+      ? b.contract.name.slice(0, 17) + '…'
+      : b.contract.name;
+    const turnLbl = `T${b.turnIdx + 1}`;
+
+    return `
+      <text x="${LABEL_W - 8}" y="${barY + BAR_H - 2}" text-anchor="end"
+        font-family="'Inter', sans-serif" font-size="11" fill="#555">${label}</text>
+      <text x="${LABEL_W - 8}" y="${barY - 1}" text-anchor="end"
+        font-family="'Inter', sans-serif" font-size="9.5" fill="#bbb">${turnLbl}</text>
+      <rect x="${LABEL_W}" y="${barY}" width="${w}" height="${BAR_H}" rx="2"
+        fill="${fill}" opacity="0.85"/>
+      <text x="${LABEL_W + w + 5}" y="${barY + BAR_H - 2}"
+        font-family="'Fira Code', monospace" font-size="10" fill="${fill}">${b.dur.totalH}h</text>`;
+  }).join('');
+
+  // X-axis labels
+  const axisLabels = ticks.map(t =>
+    `<text x="${xFor(t)}" y="${PAD_TOP + breaches.length * ROW_H + 16}"
+      text-anchor="middle" font-family="'Fira Code', monospace" font-size="9.5" fill="#bbb">${t}h</text>`
+  ).join('');
+
+  const svg = `<svg viewBox="0 0 ${totalW} ${chartH}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+    ${gridLines}
+    ${bars}
+    ${slaLine}
+    ${axisLabels}
+  </svg>`;
+
+  document.getElementById('chart').innerHTML = svg;
+}
+
+// ─────────────────────────────────────────────────────
+//  Breach list
+// ─────────────────────────────────────────────────────
+function renderBreachList(breaches) {
+  const el = document.getElementById('breach-list');
+  if (!breaches.length) {
+    el.innerHTML = '<div class="loading">No SLA breaches found.</div>';
+    return;
+  }
+
+  el.innerHTML = breaches.map(b => {
+    const { contract, turn, turnIdx, dur } = b;
+    const reqs = requestsForTurn(contract.name, turn.sentAt, turn.returnedAt);
+    const sentBy = turn.sentBy || '—';
+
+    const nudgesHTML = reqs.length
+      ? `<div class="nudge-list">${reqs.map(r => `
+          <div class="nudge-item">
+            <span class="nudge-dt">${r.dt}</span>
+            <span class="nudge-who">${r.requester}</span>
+            <span class="nudge-note">
+              <span class="nudge-tag ${tagClass(r.type)}">${tagLabel(r.type)}</span>${r.note}
+            </span>
+          </div>`).join('')}</div>`
+      : '';
+
+    const durCls = dur.totalH > SLA_HOURS ? '' : 'warn';
+
+    return `
+      <div class="breach-item">
+        <div class="breach-top">
+          <div>
+            <div class="breach-name">${contract.name}
+              <span style="font-size:10.5px;font-weight:400;color:var(--txt-3);margin-left:6px">Turn ${turnIdx + 1}</span>
+            </div>
+            <div class="breach-sub">${contract.counterparty}${sentBy !== '—' ? ` · sent by ${sentBy}` : ''}</div>
+          </div>
+          <div>
+            <span class="breach-ts">${turn.sentAt || turn.sentToElaine}</span>
+            <span class="breach-ts-label">sent to Elaine</span>
+          </div>
+          <div>
+            <span class="breach-ts">${turn.returnedAt || turn.returnedDate || '—'}</span>
+            <span class="breach-ts-label">returned</span>
+          </div>
+          <div class="dur-badge">
+            <span class="dur-num ${durCls}">${dur.d}</span><span class="dur-unit">d</span>
+            <span class="dur-hours">${dur.totalH}h</span>
+          </div>
+        </div>
+        ${nudgesHTML}
+      </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────
+//  Stats
+// ─────────────────────────────────────────────────────
+function renderStats(breaches, allTurns) {
+  const completed = allTurns.filter(t => t.returnedDate);
+  const pct = completed.length ? Math.round(breaches.length / completed.length * 100) : 0;
+  const avgOver = breaches.length
+    ? Math.round(breaches.reduce((s, b) => s + (b.dur.totalH - SLA_HOURS), 0) / breaches.length)
+    : 0;
+  const contracts = new Set(breaches.map(b => b.contract.name));
+
+  const nudgedTurns = breaches.filter(b =>
+    requestsForTurn(b.contract.name, b.turn.sentAt, b.turn.returnedAt).length > 0
+  ).length;
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-val red">${breaches.length}</div>
+      <div class="stat-label">turns breached SLA</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${contracts.size}</div>
+      <div class="stat-label">contracts affected</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val warn">${pct}%</div>
+      <div class="stat-label">of completed turns</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val red">+${avgOver}h</div>
+      <div class="stat-label">avg over SLA</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${nudgedTurns}</div>
+      <div class="stat-label">turns had Slack chases</div>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────
+//  Main
+// ─────────────────────────────────────────────────────
+async function init() {
+  let contracts = [];
+  try {
+    const res = await fetch('/api/contracts');
+    if (res.ok) {
+      const { contracts: live } = await res.json();
+      if (live && live.length) contracts = live;
+    }
+  } catch(e) { /* use empty */ }
+
+  const allTurns = contracts.flatMap(c => c.turns);
+
+  // Collect all breaching (closed) turns, sorted longest first
+  const breaches = [];
+  contracts.forEach(contract => {
+    contract.turns.forEach((turn, turnIdx) => {
+      const dur = durationFor(turn);
+      if (dur && dur.totalH > SLA_HOURS) {
+        breaches.push({ contract, turn, turnIdx, dur });
+      }
+    });
+  });
+  breaches.sort((a, b) => b.dur.totalH - a.dur.totalH);
+
+  renderStats(breaches, allTurns);
+  renderChart(breaches);
+  renderBreachList(breaches);
+}
+
+init();
+</script>
+</body>
+</html>
