@@ -91,8 +91,8 @@ html, body {
 }
 
 /* ── Chart ───────────────── */
-#chart svg { width: 100%; display: block; }
-.chart-wrap { overflow-x: auto; }
+.chart-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.chart-wrap svg { display: block; }
 
 /* ── Breach list ──────────── */
 .breach-item {
@@ -191,6 +191,11 @@ html, body {
 
   <div class="stat-row" id="stats">
     <div class="loading">Loading…</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Breaches per week</div>
+    <div class="chart-wrap" id="wow-chart"><div class="loading">Loading chart…</div></div>
   </div>
 
   <div class="section">
@@ -523,36 +528,123 @@ function tagLabel(type) {
 }
 
 // ─────────────────────────────────────────────────────
-//  Chart
+//  WoW chart
+// ─────────────────────────────────────────────────────
+function renderWoWChart(breaches) {
+  const LABEL_W = 72;
+  const BAR_AREA = 480;
+  const ROW_H   = 26;
+  const BAR_H   = 12;
+  const PAD_TOP = 6;
+  const PAD_BOT = 24;
+  const totalW  = LABEL_W + BAR_AREA + 50;
+
+  // Monday of any date
+  function weekStart(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    const day = d.getUTCDay();
+    d.setUTCDate(d.getUTCDate() - (day === 0 ? 6 : day - 1));
+    return d;
+  }
+
+  // 3 months back from latest data / today
+  const cutoff = new Date('2026-01-19T00:00:00Z');
+  const endDate = new Date('2026-04-21T00:00:00Z');
+
+  // Count breaches per week
+  const weekMap = new Map();
+  breaches.forEach(b => {
+    const d = new Date(b.turn.sentToElaine + 'T00:00:00Z');
+    if (d < cutoff) return;
+    const ws = weekStart(b.turn.sentToElaine);
+    const key = ws.toISOString().slice(0, 10);
+    weekMap.set(key, (weekMap.get(key) || 0) + 1);
+  });
+
+  // All weeks in range
+  const weeks = [];
+  let w = weekStart('2026-01-19');
+  while (w <= endDate) {
+    const key = w.toISOString().slice(0, 10);
+    const label = w.toLocaleString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    weeks.push({ key, label, count: weekMap.get(key) || 0 });
+    const next = new Date(w);
+    next.setUTCDate(next.getUTCDate() + 7);
+    w = next;
+  }
+
+  const maxCount = Math.max(...weeks.map(wk => wk.count), 1);
+  const chartH = PAD_TOP + weeks.length * ROW_H + PAD_BOT;
+
+  function xFor(n) { return LABEL_W + (n / maxCount) * BAR_AREA; }
+
+  // Light grid at integer counts
+  const ticks = [];
+  for (let t = 0; t <= maxCount; t++) ticks.push(t);
+  const gridLines = ticks.map(t =>
+    `<line x1="${xFor(t)}" y1="${PAD_TOP}" x2="${xFor(t)}" y2="${PAD_TOP + weeks.length * ROW_H}"
+      stroke="${t === 0 ? '#ddd' : '#f2f2f2'}" stroke-width="1"/>`
+  ).join('');
+
+  const axisLabels = ticks.map(t =>
+    `<text x="${xFor(t)}" y="${PAD_TOP + weeks.length * ROW_H + 14}"
+      text-anchor="middle" font-family="'Fira Code', monospace" font-size="9" fill="#ccc">${t}</text>`
+  ).join('');
+
+  const rows = weeks.map((wk, i) => {
+    const y    = PAD_TOP + i * ROW_H;
+    const barY = y + (ROW_H - BAR_H) / 2;
+    const bw   = (wk.count / maxCount) * BAR_AREA;
+    return `
+      <text x="${LABEL_W - 8}" y="${barY + BAR_H - 2}" text-anchor="end"
+        font-family="'Inter', sans-serif" font-size="10" fill="#999">${wk.label}</text>
+      ${wk.count > 0
+        ? `<rect x="${LABEL_W}" y="${barY}" width="${bw}" height="${BAR_H}" rx="2"
+            fill="#ca8a04" opacity="0.82"/>
+           <text x="${LABEL_W + bw + 5}" y="${barY + BAR_H - 2}"
+            font-family="'Fira Code', monospace" font-size="9.5" fill="#ca8a04">${wk.count}</text>`
+        : `<line x1="${LABEL_W}" y1="${barY + BAR_H / 2}" x2="${LABEL_W + BAR_AREA}" y2="${barY + BAR_H / 2}"
+            stroke="#f2f2f2" stroke-width="1"/>`
+      }`;
+  }).join('');
+
+  const svg = `<svg width="${totalW}" height="${chartH}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+    ${gridLines}
+    ${rows}
+    ${axisLabels}
+  </svg>`;
+
+  document.getElementById('wow-chart').innerHTML = svg;
+}
+
+// ─────────────────────────────────────────────────────
+//  Duration chart
 // ─────────────────────────────────────────────────────
 function renderChart(breaches) {
-  const LABEL_W  = 156;   // left label column
-  const BAR_AREA = 500;   // bar drawing width
+  const LABEL_W  = 156;
+  const BAR_AREA = 560;
   const ROW_H    = 30;
   const BAR_H    = 14;
   const PAD_TOP  = 6;
-  const PAD_BOT  = 28;    // x-axis label space
+  const PAD_BOT  = 28;
 
   const maxH = Math.max(...breaches.map(b => b.dur.totalH), SLA_HOURS * 1.1);
   const roundTo = 24;
   const axisMax = Math.ceil(maxH / roundTo) * roundTo;
 
-  const chartH   = PAD_TOP + breaches.length * ROW_H + PAD_BOT;
-  const totalW   = LABEL_W + BAR_AREA + 10;
+  const chartH = PAD_TOP + breaches.length * ROW_H + PAD_BOT;
+  const totalW = LABEL_W + BAR_AREA + 50;
 
   function xFor(h) { return LABEL_W + (h / axisMax) * BAR_AREA; }
 
-  // X-axis ticks at every 24h
   const ticks = [];
   for (let t = 0; t <= axisMax; t += 24) ticks.push(t);
 
-  // Grid lines
   const gridLines = ticks.map(t =>
     `<line x1="${xFor(t)}" y1="${PAD_TOP}" x2="${xFor(t)}" y2="${PAD_TOP + breaches.length * ROW_H}"
-      stroke="${t === 0 ? '#ccc' : '#f0f0f0'}" stroke-width="${t === 0 ? 1 : 1}"/>`
+      stroke="${t === 0 ? '#ccc' : '#f0f0f0'}" stroke-width="1"/>`
   ).join('');
 
-  // SLA target line
   const slaX = xFor(SLA_HOURS);
   const slaLine = `
     <line x1="${slaX}" y1="${PAD_TOP - 2}" x2="${slaX}" y2="${PAD_TOP + breaches.length * ROW_H + 8}"
@@ -560,35 +652,31 @@ function renderChart(breaches) {
     <text x="${slaX + 4}" y="${PAD_TOP - 4}" font-family="'Fira Code', monospace" font-size="9"
       fill="#dc2626" font-weight="500">48h SLA</text>`;
 
-  // Bars
   const bars = breaches.map((b, i) => {
-    const y   = PAD_TOP + i * ROW_H;
+    const y    = PAD_TOP + i * ROW_H;
     const barY = y + (ROW_H - BAR_H) / 2;
-    const w   = (b.dur.totalH / axisMax) * BAR_AREA;
+    const bw   = (b.dur.totalH / axisMax) * BAR_AREA;
     const fill = b.dur.totalH > SLA_HOURS ? '#dc2626' : '#ca8a04';
     const label = b.contract.name.length > 18
       ? b.contract.name.slice(0, 17) + '…'
       : b.contract.name;
-    const turnLbl = `T${b.turnIdx + 1}`;
-
     return `
       <text x="${LABEL_W - 8}" y="${barY + BAR_H - 2}" text-anchor="end"
         font-family="'Inter', sans-serif" font-size="11" fill="#555">${label}</text>
       <text x="${LABEL_W - 8}" y="${barY - 1}" text-anchor="end"
-        font-family="'Inter', sans-serif" font-size="9.5" fill="#bbb">${turnLbl}</text>
-      <rect x="${LABEL_W}" y="${barY}" width="${w}" height="${BAR_H}" rx="2"
+        font-family="'Inter', sans-serif" font-size="9.5" fill="#bbb">T${b.turnIdx + 1}</text>
+      <rect x="${LABEL_W}" y="${barY}" width="${bw}" height="${BAR_H}" rx="2"
         fill="${fill}" opacity="0.85"/>
-      <text x="${LABEL_W + w + 5}" y="${barY + BAR_H - 2}"
+      <text x="${LABEL_W + bw + 5}" y="${barY + BAR_H - 2}"
         font-family="'Fira Code', monospace" font-size="10" fill="${fill}">${b.dur.totalH}h</text>`;
   }).join('');
 
-  // X-axis labels
   const axisLabels = ticks.map(t =>
     `<text x="${xFor(t)}" y="${PAD_TOP + breaches.length * ROW_H + 16}"
       text-anchor="middle" font-family="'Fira Code', monospace" font-size="9.5" fill="#bbb">${t}h</text>`
   ).join('');
 
-  const svg = `<svg viewBox="0 0 ${totalW} ${chartH}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+  const svg = `<svg width="${totalW}" height="${chartH}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
     ${gridLines}
     ${bars}
     ${slaLine}
@@ -736,6 +824,7 @@ async function init() {
   breaches.sort((a, b) => b.dur.totalH - a.dur.totalH);
 
   renderStats(breaches, allTurns);
+  renderWoWChart(breaches);
   renderChart(breaches);
   renderBreachList(breaches);
 }
