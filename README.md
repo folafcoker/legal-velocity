@@ -1,6 +1,6 @@
 # Legal Velocity — Elaine Approval Turnaround
 
-Live dashboard tracking how long contracts spend with Elaine during the internal approval loop. Updates automatically via Juro webhooks.
+Live dashboard tracking how long contracts spend with the legal team (Elaine Foreman + Julie Plisinski) during the internal approval loop.
 
 **Live:** https://legal-velocity.vercel.app
 
@@ -8,11 +8,13 @@ Live dashboard tracking how long contracts spend with Elaine during the internal
 
 ## What it does
 
-- Shows every contract sent to Elaine for approval, with per-turn breakdown (sent → returned, days taken)
-- Color-coded turnaround times: green ≤3d, amber ≤7d, red >7d
+- Shows every contract sent to the legal team for approval, with per-turn breakdown (sent → returned, business days taken)
+- Tracks both Elaine and Julie as legal reviewers — Elaine↔Julie internal routing does not count as a separate turn
+- Color-coded turnaround times: green ≤1d, amber ≤2d, red >2d (48h SLA)
 - **Live feed** — approval activity from the last 24 hours, auto-refreshes every 60s
-- **Slack notifications** — posts to `#x-velocity-legal-pulse` whenever a contract lands with Elaine, including Priority Level, Internal Status, Owner and a direct Juro link
-- Historical seed data is always visible; live webhook data overlays on top as it arrives
+- **SLA breach view** — `/breach` shows every contract that exceeded the 48h threshold
+- **History log** — full audit trail of every approval turn since Nov 2025
+- **Slack notifications** — posts to `#x-velocity-legal-pulse` whenever a contract lands with legal, including Priority Level, Internal Status, Owner and a direct Juro link
 
 ---
 
@@ -20,38 +22,40 @@ Live dashboard tracking how long contracts spend with Elaine during the internal
 
 ```
 Juro (contract.approval_requested / contract.fully_approved)
-    ↓  webhook POST
-/api/webhook          ← parses event, updates Redis, fires Slack
-    ↓
-Upstash Redis         ← stores live contract turns + feed events
-    ↓
-/api/contracts        ← serves merged contract data to the dashboard
-/api/feed             ← serves last 24h activity feed (max 5 items)
-    ↓
-index.html            ← fetches on load, merges with seed data, shows LIVE badge
+    ├── webhook POST (real-time, precise timestamps)
+    │       ↓
+    │   /api/webhook        ← parses event, updates Redis, fires Slack
+    │
+    └── Juro REST API (polled every 10 minutes via Vercel cron)
+            ↓
+        /api/sync-juro      ← fetches all contracts, detects legal-team turns,
+                               writes to history log + contract store
+
+Upstash Redis
+    ├── juro:contract:{id}      ← current contract + turns (from API sync)
+    ├── contract:{id}           ← contract + turns (from webhook, real-time)
+    ├── juro:event_log          ← sorted set: full history of every turn
+    ├── juro:event_dedup        ← set: prevents duplicate history entries
+    ├── juro:state:{id}         ← last-seen approval state per contract
+    └── feed                    ← list: last 50 recent activity events
+
+/api/contracts    ← merges Juro API + webhook sources, serves to dashboard
+/api/feed         ← last 24h activity (max 5 items)
+/api/history      ← full turn history with business-day durations
+/api/sync-juro    ← sync endpoint (also called by cron every 10 min)
+
+index.html        ← main dashboard (seed data + live overlay)
+breach.html       ← SLA breach analysis
 ```
 
-### Juro webhook payload shape
+### Turn definition
 
-Juro sends events in this structure (confirmed from live payloads):
+A **turn** is the period a contract spends within the legal team:
+- **Opens** when a contract is sent to Elaine or Julie from outside the legal team
+- **Closes** when Elaine or Julie sends it back to anyone outside the legal team
+- **Ignored** if the contract moves between Elaine and Julie (internal routing)
 
-```json
-{
-  "event": {
-    "type": "contract.approval_requested",
-    "by":   { "email": "elaine@granola.so", "name": "Elaine Foreman" }
-  },
-  "contract": {
-    "id":          "69e23661d4c650606c10958d",
-    "name":        "Acme Corp - Enterprise Order Form.docx",
-    "template":    { "name": "Enterprise Order Form with Platform Terms" },
-    "owner":       { "name": "Ryan Francis", "username": "ryan@granola.so" },
-    "fields":      [ { "title": "Priority Level", "value": "P0 / Top Priority" }, ... ],
-    "internalUrl": "https://app.juro.com/sign/{id}",
-    "updatedDate": "2026-04-17T15:14:15.636Z"
-  }
-}
-```
+SLA threshold: **48 business hours** (weekends + US federal holidays excluded).
 
 ---
 
@@ -59,23 +63,23 @@ Juro sends events in this structure (confirmed from live payloads):
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/webhook` | POST | Receives Juro webhook events |
-| `/api/contracts` | GET | Returns live contracts from Redis |
-| `/api/feed` | GET | Returns last 5 approval events from the last 24h |
+| `/api/webhook` | POST | Receives Juro webhook events (real-time) |
+| `/api/sync-juro` | GET/POST | Syncs Juro API → Redis; `?full=true` rescans all contracts |
+| `/api/contracts` | GET | Merged live contract data |
+| `/api/feed` | GET | Last 5 approval events from the last 24h |
+| `/api/history` | GET | Full turn history; supports `?from=YYYY-MM-DD&to=YYYY-MM-DD` |
 
 ---
 
 ## Environment variables
 
-See [`.env.example`](.env.example) for the full list. Required in Vercel:
-
 | Variable | Purpose |
 |---|---|
-| `KV_REST_API_URL` | Upstash Redis — injected automatically by Vercel integration |
-| `KV_REST_API_TOKEN` | Upstash Redis — injected automatically by Vercel integration |
+| `KV_REST_API_URL` | Upstash Redis URL (auto-injected by Vercel integration) |
+| `KV_REST_API_TOKEN` | Upstash Redis token |
+| `JURO_API_KEY` | Juro REST API key — used by sync-juro for polling |
 | `SLACK_WEBHOOK_URL` | Incoming webhook for `#x-velocity-legal-pulse` |
-| `JURO_API_KEY` | Optional — not currently used (smartfields come in the webhook payload) |
-| `JURO_WEBHOOK_SECRET` | Optional — validates Juro webhook signature header |
+| `JURO_WEBHOOK_SECRET` | Optional — validates Juro webhook signature |
 
 ### Local development
 
@@ -87,11 +91,33 @@ vercel dev                   # runs functions + static files locally
 
 ---
 
-## Juro webhook setup
+## Juro setup
 
+### Webhook (real-time)
 In Juro → Settings → Webhooks:
 - **URL:** `https://legal-velocity.vercel.app/api/webhook`
-- **Triggers:** Contract sent for approval, Contract fully approved
+- **Events:** Contract sent for approval, Contract fully approved
+
+### API sync (every 10 min)
+Configured in `vercel.json` as a Vercel Cron Job. Requires Vercel Pro.
+Manual trigger: `POST https://legal-velocity.vercel.app/api/sync-juro?full=true`
+
+---
+
+## Redis key reference
+
+| Key pattern | Type | Contents |
+|---|---|---|
+| `juro:contract:{id}` | JSON | Contract record from Juro API sync |
+| `juro:contract_ids` | JSON array | IDs of all Juro-synced contracts |
+| `juro:event_log` | Sorted set | Full turn history (score = timestamp ms) |
+| `juro:event_dedup` | Set | Dedup keys to prevent duplicate log entries |
+| `juro:state:{id}` | JSON | Last-seen approval state for change detection |
+| `juro:last_synced` | String | ISO timestamp of last successful sync |
+| `contract:{id}` | JSON | Contract record from webhook (real-time) |
+| `contract_ids` | JSON array | IDs of webhook-tracked contracts |
+| `feed` | List | Last 50 activity events |
+| `last_updated` | String | ISO timestamp of last data write |
 
 ---
 
@@ -99,14 +125,18 @@ In Juro → Settings → Webhooks:
 
 ```
 legal-velocity/
-├── index.html          ← dashboard (seed data + live overlay)
+├── index.html          ← main dashboard (seed data + live overlay)
+├── breach.html         ← SLA breach analysis
 ├── api/
-│   ├── webhook.js      ← Juro webhook receiver
-│   ├── contracts.js    ← live contracts API
-│   └── feed.js         ← recent activity feed API
+│   ├── webhook.js      ← Juro webhook receiver (real-time events)
+│   ├── sync-juro.js    ← Juro API polling sync + history logging
+│   ├── contracts.js    ← merged contracts API
+│   ├── feed.js         ← recent activity feed
+│   └── history.js      ← full turn history with SLA durations
+├── seed-history.js     ← one-time script: seeds historical data into Redis
+├── vercel.json         ← routes + cron config (10-min sync)
+├── package.json
 ├── .env.example        ← required environment variables
 ├── DATA_MODEL.md       ← turn data structure + Juro event mapping
-├── NEXT_STEPS.md       ← backlog and status
-├── parse_juro.py       ← converts Juro activity export → JS (manual refresh)
-└── build_contracts.py  ← normalises contract names for display
+└── NEXT_STEPS.md       ← backlog and status
 ```

@@ -4,7 +4,11 @@ const kv = new Redis({
   token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-const ELAINE_EMAIL = 'elaine@granola.so';
+// Both Elaine and Julie constitute the legal team.
+// A turn opens when a contract is sent TO either of them from outside,
+// and closes when either of them sends it back to someone outside.
+// Elaine ↔ Julie routing is internal and does NOT open or close a turn.
+const LEGAL_TEAM = new Set(['elaine@granola.so', 'julie@granola.so']);
 
 // ─── Juro payload helpers ─────────────────────────────────────────────────────
 //
@@ -210,14 +214,17 @@ module.exports = async function handler(req, res) {
   let feedEvent = null;
 
   if (isRequested) {
-    const isElaine = approverEmail === ELAINE_EMAIL;
-    const openIdx  = contract.turns.findIndex(t => t.returnedDate === null);
+    const isToLegal  = LEGAL_TEAM.has(approverEmail);
+    const openIdx    = contract.turns.findIndex(t => t.returnedDate === null);
+    const hasOpenTurn = openIdx !== -1;
 
-    if (isElaine) {
+    if (isToLegal && !hasOpenTurn) {
+      // ── Contract entering the legal team from outside → open a new turn ──
+      const sentBy = firstName(ownerName, ownerEmail);
       contract.turns.push({
         sentToElaine: toDateStr(timestamp),
         sentAt:       formatTs(timestamp),
-        sentBy:       firstName(ownerName, ownerEmail),
+        sentBy,
         returnedDate: null,
         returnedAt:   null,
         returnedTo:   null,
@@ -227,24 +234,28 @@ module.exports = async function handler(req, res) {
         type:         'turn_opened',
         contractName: contract.name,
         counterparty: contract.counterparty,
-        sentBy:       firstName(ownerName, ownerEmail),
+        sentBy,
         timestamp,
       };
 
-      // All smartfield data is already in the webhook payload — no extra API call needed
       await sendSlackNotification({
         contractName:   contract.name,
         docType:        contract.counterparty,
         contractId,
-        priority:       smartfield(fields, 'Priority Level')   || '—',
-        internalStatus: smartfield(fields, 'Internal Status')  || 'Sent for Approval',
-        owner:          ownerName                              || ownerEmail || '—',
-        approver:       approverName                           || 'Elaine Foreman',
+        priority:       smartfield(fields, 'Priority Level')  || '—',
+        internalStatus: smartfield(fields, 'Internal Status') || 'Sent for Approval',
+        owner:          ownerName                             || ownerEmail || '—',
+        approver:       approverName                          || approverEmail || '—',
         juroUrl,
         timestamp,
       });
 
-    } else if (openIdx !== -1) {
+    } else if (isToLegal && hasOpenTurn) {
+      // ── Elaine → Julie or Julie → Elaine: internal legal routing, ignore ──
+      console.log('[webhook] internal legal routing, skipping turn update');
+
+    } else if (!isToLegal && hasOpenTurn) {
+      // ── Legal team returning contract to outside → close the open turn ──
       const returnedTo = firstName(approverName, approverEmail);
       contract.turns[openIdx].returnedDate = toDateStr(timestamp);
       contract.turns[openIdx].returnedAt   = formatTs(timestamp);
@@ -257,6 +268,7 @@ module.exports = async function handler(req, res) {
         timestamp,
       };
     }
+    // else: !isToLegal && !hasOpenTurn → commercial-only approval, ignore
 
   } else if (isFinished) {
     const openIdx = contract.turns.findIndex(t => t.returnedDate === null);

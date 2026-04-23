@@ -2,5 +2,8 @@
   "routes": [
     { "src": "/breach", "dest": "/breach.html" },
     { "src": "/api/(.*)", "dest": "/api/$1" }
+  ],
+  "crons": [
+    { "path": "/api/sync-juro", "schedule": "*/10 * * * *" }
   ]
 }
