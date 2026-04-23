@@ -136,6 +136,17 @@ html, body {
 .contract-meta a { color: var(--txt-3); text-decoration: none; font-size: 10px; }
 .contract-meta a:hover { color: var(--txt); }
 
+.contract-refresh {
+  background: none; border: 1px solid var(--line); border-radius: 4px;
+  color: var(--txt-3); cursor: pointer; font-size: 11px; font-family: var(--font);
+  padding: 2px 6px; margin-left: 6px; vertical-align: middle;
+  transition: color 0.1s, border-color 0.1s;
+}
+.contract-refresh:hover { color: var(--txt); border-color: var(--txt-3); }
+.contract-refresh:disabled { opacity: 0.4; cursor: default; }
+.contract-refresh.spinning { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); display: inline-block; } }
+
 .status-badge {
   font-size: 10px; font-weight: 500; padding: 2px 6px; border-radius: 4px;
   display: inline-block; white-space: nowrap;
@@ -368,27 +379,21 @@ function renderContracts(d, filter) {
     const gapsClean = (!c.criticalMissing && !c.importantMissing) ? `<div class="gaps-clean">clean</div>` : '';
 
     // Field breakdown rows
-    const fieldItems = Object.entries(c.fields).map(([title, f]) => {
-      const dotCls = f.present ? 'present' : f.weight;
-      const valPart = f.present
-        ? `<span class="field-value">${String(f.value).slice(0, 60)}</span>`
-        : `<span class="field-missing">missing</span>`;
-      return `
-        <div class="field-item">
-          <div class="field-dot ${dotCls}"></div>
-          <div class="field-name">${title}</div>
-          ${valPart}
-        </div>`;
-    }).join('');
+    const fieldItems = buildFieldItems(c.fields);
 
     const ownerPart = c.owner ? ` · ${c.owner}` : '';
     const datePart  = c.createdDate ? ` · ${c.createdDate}` : '';
+    // Only show refresh for real Juro IDs (not hist-* seeds)
+    const isJuroId  = c.id && !c.id.startsWith('hist-');
 
     return `
-      <div class="contract-row" id="row-${i}" onclick="toggleRow(${i})">
+      <div class="contract-row" id="row-${i}" data-contract-id="${c.id || ''}" onclick="toggleRow(${i})">
         <div class="contract-top">
           <div>
-            <div class="contract-name">${c.name || '—'}</div>
+            <div class="contract-name">
+              ${c.name || '—'}
+              ${isJuroId ? `<button class="contract-refresh" id="refresh-${i}" title="Re-fetch from Juro" onclick="refreshContract(event, '${c.id}', ${i})">↻</button>` : ''}
+            </div>
             <div class="contract-meta">
               ${c.template || 'Unknown template'}${ownerPart}${datePart}
               ${c.juroUrl ? ` · <a href="${c.juroUrl}" target="_blank" onclick="event.stopPropagation()">Juro ↗</a>` : ''}
@@ -415,6 +420,70 @@ function renderContracts(d, filter) {
 function toggleRow(i) {
   const row = document.getElementById(`row-${i}`);
   row.classList.toggle('open');
+}
+
+function buildFieldItems(fields) {
+  return Object.entries(fields).map(([title, f]) => {
+    const dotCls = f.present ? 'present' : f.weight;
+    const valPart = f.present
+      ? `<span class="field-value">${String(f.value).slice(0, 60)}</span>`
+      : `<span class="field-missing">missing</span>`;
+    return `
+      <div class="field-item">
+        <div class="field-dot ${dotCls}"></div>
+        <div class="field-name">${title}</div>
+        ${valPart}
+      </div>`;
+  }).join('');
+}
+
+async function refreshContract(event, contractId, rowIndex) {
+  event.stopPropagation();
+  const btn = document.getElementById(`refresh-${rowIndex}`);
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    const res = await fetch(`/api/hygiene?id=${encodeURIComponent(contractId)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const c = data.contract;
+
+    // Update the stored contract in DATA so filter/re-render stays consistent
+    if (DATA) {
+      const idx = DATA.contracts.findIndex(x => x.id === contractId);
+      if (idx !== -1) DATA.contracts[idx] = c;
+    }
+
+    // Re-render just this row's dynamic parts
+    const row = document.getElementById(`row-${rowIndex}`);
+    const sCls  = statusClass(c.status);
+    const cCls  = completenessClass(c.completeness);
+
+    row.querySelector('.status-badge').className = `status-badge ${sCls}`;
+    row.querySelector('.status-badge').textContent = c.status || '—';
+
+    const gapsCrit  = c.criticalMissing  > 0 ? `<div class="gaps-crit">${c.criticalMissing} critical</div>` : '';
+    const gapsImp   = c.importantMissing > 0 ? `<div class="gaps-imp">${c.importantMissing} important</div>` : '';
+    const gapsClean = (!c.criticalMissing && !c.importantMissing) ? `<div class="gaps-clean">clean</div>` : '';
+    row.querySelector('.gaps-wrap').innerHTML = gapsCrit + gapsImp + gapsClean;
+
+    const numEl = row.querySelector('.completeness-num');
+    numEl.className = `completeness-num ${cCls}`;
+    numEl.textContent = c.completeness;
+
+    row.querySelector('.contract-fields').innerHTML = buildFieldItems(c.fields);
+
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = '↻'; btn.disabled = false; }, 1500);
+  } catch (e) {
+    console.error(e);
+    btn.textContent = '!';
+    btn.title = e.message;
+    setTimeout(() => { btn.textContent = '↻'; btn.disabled = false; btn.title = 'Re-fetch from Juro'; }, 2000);
+  }
 }
 
 function setFilter(filter) {

@@ -149,6 +149,23 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store');
 
+  const apiKey = process.env.JURO_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'JURO_API_KEY not set' });
+
+  // Single-contract refresh: ?id=<contractId>
+  const contractId = req.query?.id;
+  if (contractId) {
+    try {
+      const data   = await juroGet(`/contracts/${contractId}`);
+      const detail = data.contract || data;
+      if (!detail || !detail.id) return res.status(404).json({ error: 'Contract not found' });
+      const report = analyzeContract(detail);
+      return res.status(200).json({ contract: report });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   const bust = req.query?.refresh === 'true';
 
   // Return cached result if available and not busting
@@ -156,9 +173,6 @@ module.exports = async function handler(req, res) {
     const cached = await kv.get('juro:hygiene:cache');
     if (cached) return res.status(200).json({ ...cached, cached: true });
   }
-
-  const apiKey = process.env.JURO_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'JURO_API_KEY not set' });
 
   try {
     const ids     = await listAllIds();
