@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Hygiene — Granola</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --txt:    #111;
+  --txt-2:  #888;
+  --txt-3:  #bbb;
+  --line:   #ebebeb;
+  --sub-bg: #fafafa;
+  --good:   #16a34a;
+  --warn:   #ca8a04;
+  --bad:    #dc2626;
+  --font:   'Inter', sans-serif;
+  --mono:   'Fira Code', monospace;
+}
+
+html, body {
+  font-family: var(--font);
+  background: #fff;
+  color: var(--txt);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+/* ── Nav ─────────────────── */
+.nav-back { margin-bottom: 32px; display: flex; align-items: center; justify-content: space-between; }
+.nav-back a { font-size: 12px; color: var(--txt-3); text-decoration: none; transition: color 0.1s; }
+.nav-back a:hover { color: var(--txt); }
+.refresh-btn {
+  font-size: 11px; color: var(--txt-3); background: none; border: 1px solid var(--line);
+  border-radius: 5px; padding: 4px 10px; cursor: pointer; font-family: var(--font);
+  transition: color 0.1s, border-color 0.1s;
+}
+.refresh-btn:hover { color: var(--txt); border-color: var(--txt-3); }
+.refresh-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Header ─────────────── */
+.page-header { margin-bottom: 28px; }
+.page-header h1 { font-size: 15px; font-weight: 500; letter-spacing: -0.2px; }
+.page-header p  { font-size: 12px; color: var(--txt-2); margin-top: 4px; line-height: 1.5; }
+.scanned-at { font-size: 11px; color: var(--txt-3); margin-top: 6px; font-family: var(--mono); }
+
+/* ── Stat chips ─────────── */
+.stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 36px; }
+.stat-card {
+  background: var(--sub-bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 16px; min-width: 130px;
+}
+.stat-val {
+  font-family: var(--mono); font-size: 22px; font-weight: 400;
+  letter-spacing: -0.5px; line-height: 1; color: var(--txt);
+}
+.stat-val.red  { color: var(--bad); }
+.stat-val.warn { color: var(--warn); }
+.stat-val.good { color: var(--good); }
+.stat-label { font-size: 11px; color: var(--txt-3); margin-top: 5px; line-height: 1.4; }
+
+/* ── Section ─────────────── */
+.section { margin-bottom: 40px; }
+.section-label {
+  font-size: 11px; font-weight: 500; color: var(--txt-3);
+  letter-spacing: 0.3px; text-transform: uppercase;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.section-label-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+}
+.section-label-row .section-label { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.filter-toggle {
+  display: flex; gap: 4px;
+}
+.filter-btn {
+  font-size: 10px; font-weight: 500; padding: 3px 8px; border-radius: 4px;
+  border: 1px solid var(--line); background: none; cursor: pointer;
+  font-family: var(--font); color: var(--txt-3); transition: all 0.1s;
+}
+.filter-btn.active { background: var(--txt); color: #fff; border-color: var(--txt); }
+
+/* ── Miss bar chart ─────── */
+.miss-table { width: 100%; }
+.miss-row {
+  display: grid; grid-template-columns: 190px 1fr 40px 50px;
+  align-items: center; gap: 10px;
+  padding: 7px 0; border-bottom: 1px solid var(--line);
+}
+.miss-row:last-child { border-bottom: none; }
+.miss-field { font-size: 12px; color: var(--txt); }
+.miss-weight {
+  font-size: 10px; font-weight: 500; padding: 1px 5px; border-radius: 4px;
+  display: inline-block; margin-left: 5px; vertical-align: middle;
+}
+.miss-weight.critical { background: #fee2e2; color: var(--bad); }
+.miss-weight.important { background: #fef9c3; color: var(--warn); }
+.miss-bar-wrap { background: var(--sub-bg); border-radius: 3px; height: 6px; overflow: hidden; }
+.miss-bar { height: 100%; border-radius: 3px; background: var(--bad); transition: width 0.3s; }
+.miss-bar.warn { background: var(--warn); }
+.miss-count { font-family: var(--mono); font-size: 11px; color: var(--txt-2); text-align: right; }
+.miss-pct   { font-family: var(--mono); font-size: 10px; color: var(--txt-3); text-align: right; }
+
+/* ── Contract table ─────── */
+.contract-list { width: 100%; }
+
+.contract-row {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+  cursor: pointer;
+}
+.contract-row:last-child { border-bottom: none; }
+.contract-row:hover .contract-name { text-decoration: underline; }
+
+.contract-top {
+  display: grid;
+  grid-template-columns: 1fr 80px 90px 70px;
+  align-items: start; gap: 8px;
+}
+
+.contract-name { font-size: 13px; font-weight: 500; }
+.contract-meta { font-size: 11px; color: var(--txt-2); margin-top: 2px; }
+.contract-meta a { color: var(--txt-3); text-decoration: none; font-size: 10px; }
+.contract-meta a:hover { color: var(--txt); }
+
+.status-badge {
+  font-size: 10px; font-weight: 500; padding: 2px 6px; border-radius: 4px;
+  display: inline-block; white-space: nowrap;
+}
+.status-badge.signed    { background: #dcfce7; color: #166534; }
+.status-badge.sent      { background: #dbeafe; color: #1e40af; }
+.status-badge.uploaded  { background: #f1f5f9; color: #475569; }
+.status-badge.draft     { background: #f1f5f9; color: #475569; }
+.status-badge.other     { background: #f1f5f9; color: #475569; }
+
+.completeness-wrap { text-align: right; }
+.completeness-num {
+  font-family: var(--mono); font-size: 18px; font-weight: 400;
+  letter-spacing: -0.5px; line-height: 1;
+}
+.completeness-num.red  { color: var(--bad); }
+.completeness-num.warn { color: var(--warn); }
+.completeness-num.good { color: var(--good); }
+.completeness-unit { font-family: var(--mono); font-size: 10px; color: var(--txt-3); }
+
+.gaps-wrap { text-align: right; }
+.gaps-crit  { font-family: var(--mono); font-size: 12px; color: var(--bad); font-weight: 500; }
+.gaps-imp   { font-family: var(--mono); font-size: 11px; color: var(--warn); margin-top: 1px; }
+.gaps-clean { font-family: var(--mono); font-size: 11px; color: var(--good); }
+
+/* ── Field dots (expanded) ── */
+.contract-fields {
+  display: none;
+  margin-top: 10px;
+  background: var(--sub-bg);
+  border-radius: 6px;
+  padding: 2px 0;
+}
+.contract-row.open .contract-fields { display: block; }
+
+.field-item {
+  display: flex; align-items: baseline;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px; gap: 8px;
+}
+.field-item:last-child { border-bottom: none; }
+.field-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  margin-top: 3px;
+}
+.field-dot.present  { background: var(--good); }
+.field-dot.critical { background: var(--bad); }
+.field-dot.important { background: var(--warn); }
+.field-name  { flex: 1; color: var(--txt-2); }
+.field-value { font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field-missing { font-size: 10.5px; color: var(--txt-3); font-style: italic; }
+
+/* ── Column headers ─────── */
+.col-headers {
+  display: grid;
+  grid-template-columns: 1fr 80px 90px 70px;
+  gap: 8px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px; font-weight: 500;
+  color: var(--txt-3); letter-spacing: 0.2px;
+}
+.col-headers span:not(:first-child) { text-align: right; }
+
+.loading { color: var(--txt-3); font-size: 12px; padding: 24px 0; }
+.empty   { color: var(--txt-3); font-size: 12px; padding: 16px 0; }
+.error   { color: var(--bad);   font-size: 12px; padding: 16px 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="nav-back">
+    <a href="/">← Dashboard</a>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadData(true)">Refresh data</button>
+  </div>
+
+  <div class="page-header">
+    <h1>Data Hygiene Report</h1>
+    <p>Metadata completeness for all Juro contracts created since 1 Jan 2026 — focused on fields required for finance reporting.</p>
+    <div class="scanned-at" id="scanned-at"></div>
+  </div>
+
+  <div class="stat-row" id="stats">
+    <div class="loading">Loading…</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Missing fields — frequency across all contracts</div>
+    <div id="miss-chart"><div class="loading">Loading…</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label-row">
+      <div class="section-label">Contracts</div>
+      <div class="filter-toggle">
+        <button class="filter-btn active" data-filter="gaps"  onclick="setFilter('gaps')">Signed with gaps</button>
+        <button class="filter-btn"        data-filter="signed" onclick="setFilter('signed')">All signed</button>
+        <button class="filter-btn"        data-filter="all"   onclick="setFilter('all')">All</button>
+      </div>
+    </div>
+    <div class="col-headers">
+      <span>Contract</span>
+      <span>Status</span>
+      <span>Missing</span>
+      <span>Complete</span>
+    </div>
+    <div id="contract-list"><div class="loading">Loading…</div></div>
+  </div>
+
+</div>
+
+<script>
+let DATA = null;
+let currentFilter = 'gaps';
+
+function statusClass(status = '') {
+  const s = status.toLowerCase();
+  if (s === 'signed' || s === 'fully signed' || s === 'fully_signed' || s === 'executed') return 'signed';
+  if (s.includes('sent') || s.includes('approval')) return 'sent';
+  if (s === 'uploaded') return 'uploaded';
+  if (s === 'draft') return 'draft';
+  return 'other';
+}
+
+function completenessClass(pct) {
+  if (pct >= 80) return 'good';
+  if (pct >= 50) return 'warn';
+  return 'red';
+}
+
+function renderStats(d) {
+  const signedPct = d.total > 0 ? Math.round((d.totalSigned / d.total) * 100) : 0;
+  const gapPct    = d.totalSigned > 0 ? Math.round((d.signedWithCriticalGaps / d.totalSigned) * 100) : 0;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-val">${d.total}</div>
+      <div class="stat-label">Contracts scanned<br>since ${d.since}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${d.totalSigned}</div>
+      <div class="stat-label">Fully signed<br>${signedPct}% of total</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val ${d.signedWithCriticalGaps > 0 ? 'red' : 'good'}">${d.signedWithCriticalGaps}</div>
+      <div class="stat-label">Signed with critical gaps<br>${gapPct}% of signed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val ${completenessClass(d.avgCompleteness)}">${d.avgCompleteness}%</div>
+      <div class="stat-label">Avg completeness<br>across all contracts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${d.totalOrderForms}</div>
+      <div class="stat-label">Order forms<br>in scope</div>
+    </div>
+  `;
+}
+
+function renderMissChart(d) {
+  const entries = Object.entries(d.fieldMissCounts)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (entries.length === 0) {
+    document.getElementById('miss-chart').innerHTML = '<div class="empty">No missing fields detected.</div>';
+    return;
+  }
+
+  const maxCount = entries[0][1];
+
+  // Determine weight for each field title
+  const FIELD_WEIGHTS = {
+    'Counterparty Name':               'critical',
+    'Counterparty Contact Name/Title': 'important',
+    'Counterparty Email':              'important',
+    'Initial Authorized Users Fee':    'critical',
+    'Number of Authorized Users':      'critical',
+    'Payment Terms':                   'critical',
+    'Auto Renewal':                    'important',
+    'Service(s)':                      'important',
+    'Effective Date':                  'critical',
+    'Agreement Effective Date':        'critical',
+    'End Date':                        'important',
+    'Governing Law':                   'important',
+  };
+
+  const rows = entries.map(([title, count]) => {
+    const weight = FIELD_WEIGHTS[title] || 'important';
+    const pct    = d.total > 0 ? Math.round((count / d.total) * 100) : 0;
+    const barW   = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0;
+    const barCls = weight === 'critical' ? '' : 'warn';
+    return `
+      <div class="miss-row">
+        <div class="miss-field">
+          ${title}
+          <span class="miss-weight ${weight}">${weight}</span>
+        </div>
+        <div class="miss-bar-wrap">
+          <div class="miss-bar ${barCls}" style="width:${barW}%"></div>
+        </div>
+        <div class="miss-count">${count}</div>
+        <div class="miss-pct">${pct}%</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('miss-chart').innerHTML = `<div class="miss-table">${rows}</div>`;
+}
+
+function renderContracts(d, filter) {
+  let contracts = d.contracts;
+
+  if (filter === 'gaps') {
+    contracts = contracts.filter(c => c.isSigned && c.criticalMissing > 0);
+  } else if (filter === 'signed') {
+    contracts = contracts.filter(c => c.isSigned);
+  }
+
+  if (contracts.length === 0) {
+    const msg = filter === 'gaps'
+      ? 'No fully-signed contracts with critical gaps.'
+      : 'No contracts to show.';
+    document.getElementById('contract-list').innerHTML = `<div class="empty">${msg}</div>`;
+    return;
+  }
+
+  const rows = contracts.map((c, i) => {
+    const sCls  = statusClass(c.status);
+    const cCls  = completenessClass(c.completeness);
+    const gapsCrit = c.criticalMissing  > 0 ? `<div class="gaps-crit">${c.criticalMissing} critical</div>` : '';
+    const gapsImp  = c.importantMissing > 0 ? `<div class="gaps-imp">${c.importantMissing} important</div>` : '';
+    const gapsClean = (!c.criticalMissing && !c.importantMissing) ? `<div class="gaps-clean">clean</div>` : '';
+
+    // Field breakdown rows
+    const fieldItems = Object.entries(c.fields).map(([title, f]) => {
+      const dotCls = f.present ? 'present' : f.weight;
+      const valPart = f.present
+        ? `<span class="field-value">${String(f.value).slice(0, 60)}</span>`
+        : `<span class="field-missing">missing</span>`;
+      return `
+        <div class="field-item">
+          <div class="field-dot ${dotCls}"></div>
+          <div class="field-name">${title}</div>
+          ${valPart}
+        </div>`;
+    }).join('');
+
+    const ownerPart = c.owner ? ` · ${c.owner}` : '';
+    const datePart  = c.createdDate ? ` · ${c.createdDate}` : '';
+
+    return `
+      <div class="contract-row" id="row-${i}" onclick="toggleRow(${i})">
+        <div class="contract-top">
+          <div>
+            <div class="contract-name">${c.name || '—'}</div>
+            <div class="contract-meta">
+              ${c.template || 'Unknown template'}${ownerPart}${datePart}
+              ${c.juroUrl ? ` · <a href="${c.juroUrl}" target="_blank" onclick="event.stopPropagation()">Juro ↗</a>` : ''}
+            </div>
+          </div>
+          <div>
+            <span class="status-badge ${sCls}">${c.status || '—'}</span>
+          </div>
+          <div class="gaps-wrap">
+            ${gapsCrit}${gapsImp}${gapsClean}
+          </div>
+          <div class="completeness-wrap">
+            <div class="completeness-num ${cCls}">${c.completeness}</div>
+            <div class="completeness-unit">%</div>
+          </div>
+        </div>
+        <div class="contract-fields">${fieldItems}</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('contract-list').innerHTML = rows;
+}
+
+function toggleRow(i) {
+  const row = document.getElementById(`row-${i}`);
+  row.classList.toggle('open');
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === filter);
+  });
+  if (DATA) renderContracts(DATA, filter);
+}
+
+async function loadData(bust = false) {
+  const btn = document.getElementById('refresh-btn');
+  if (bust) {
+    btn.disabled = true;
+    btn.textContent = 'Refreshing…';
+  }
+
+  try {
+    const url = bust ? '/api/hygiene?refresh=true' : '/api/hygiene';
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    DATA = await res.json();
+
+    if (DATA.error) throw new Error(DATA.error);
+
+    const ts = DATA.scannedAt
+      ? new Date(DATA.scannedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+      : '';
+    const cached = DATA.cached ? ' (cached)' : '';
+    document.getElementById('scanned-at').textContent = ts ? `Last scanned ${ts}${cached}` : '';
+
+    renderStats(DATA);
+    renderMissChart(DATA);
+    renderContracts(DATA, currentFilter);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('stats').innerHTML        = `<div class="error">Error: ${e.message}</div>`;
+    document.getElementById('miss-chart').innerHTML   = '';
+    document.getElementById('contract-list').innerHTML = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Refresh data';
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 {
   "routes": [
-    { "src": "/breach", "dest": "/breach.html" },
+    { "src": "/breach",  "dest": "/breach.html"  },
+    { "src": "/hygiene", "dest": "/hygiene.html" },
     { "src": "/api/(.*)", "dest": "/api/$1" }
   ],
   "crons": [
