@@ -224,6 +224,7 @@ module.exports = async function handler(req, res) {
       contract.turns.push({
         sentToElaine: toDateStr(timestamp),
         sentAt:       formatTs(timestamp),
+        openedAtIso:  timestamp, // Juro ISO time — for SLA (business hours) and dedupe
         sentBy,
         returnedDate: null,
         returnedAt:   null,
@@ -285,6 +286,8 @@ module.exports = async function handler(req, res) {
     };
   }
 
+  contract.juroUrl = juroUrl;
+
   // ── Persist ───────────────────────────────────────────────────────────────
   await kv.set(contractKey, contract);
   await kv.set('last_updated', new Date().toISOString());
@@ -296,7 +299,8 @@ module.exports = async function handler(req, res) {
 
   if (feedEvent) {
     await kv.lpush('feed', feedEvent);
-    await kv.ltrim('feed', 0, 49);
+    /* Keep a deeper buffer so the 7-day live log has enough rows */
+    await kv.ltrim('feed', 0, 499);
   }
 
   return res.status(200).json({ ok: true, event: eventType, contract });

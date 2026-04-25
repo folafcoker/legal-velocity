@@ -12,26 +12,109 @@ const PAGE_SIZE   = 200;
 const LEGAL_TEAM  = new Set(['elaine@granola.so', 'julie@granola.so']);
 const BATCH_SIZE = 10;   // concurrent detail fetches per round
 const BATCH_WAIT = 1100; // ms between batches — keeps us under 10 req/s
+const MAX_API_CALLS_PER_RUN = Number(process.env.JURO_SYNC_MAX_CALLS || 150);
+const LOCK_KEY = 'juro:sync:lock';
+const LOCK_TTL_SECONDS = Number(process.env.JURO_SYNC_LOCK_TTL_SECONDS || 900);
+const MAX_RETRIES = 5;
+const USAGE_DAY_TTL_SECONDS = 60 * 60 * 24 * 120; // retain daily usage for 120 days
 
 // ─── Juro API ─────────────────────────────────────────────────────────────────
 
-async function juroGet(path) {
-  const res = await fetch(`${JURO_BASE}${path}`, {
-    headers: { 'x-api-key': process.env.JURO_API_KEY },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Juro ${res.status} ${path}: ${body.slice(0, 200)}`);
-  }
-  return res.json();
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function listContractIds(since) {
+function dayKeyFromDate(d = new Date()) {
+  return d.toISOString().slice(0, 10);
+}
+
+function monthKeyFromDate(d = new Date()) {
+  return d.toISOString().slice(0, 7);
+}
+
+async function recordUsageStats(budget, mode, ok) {
+  const now = new Date();
+  const dayKey = `juro:usage:day:${dayKeyFromDate(now)}`;
+  const monthKey = `juro:usage:month:${monthKeyFromDate(now)}`;
+
+  async function upsert(key, withExpiry) {
+    const current = (await kv.get(key)) || {
+      calls: 0,
+      listCalls: 0,
+      detailCalls: 0,
+      retries: 0,
+      rateLimit429: 0,
+      runs: 0,
+      successfulRuns: 0,
+      failedRuns: 0,
+      lastRunAt: null,
+      lastMode: null,
+    };
+
+    const next = {
+      ...current,
+      calls: current.calls + budget.calls,
+      listCalls: current.listCalls + budget.listCalls,
+      detailCalls: current.detailCalls + budget.detailCalls,
+      retries: current.retries + budget.retries,
+      rateLimit429: current.rateLimit429 + budget.rateLimit429,
+      runs: current.runs + 1,
+      successfulRuns: current.successfulRuns + (ok ? 1 : 0),
+      failedRuns: current.failedRuns + (ok ? 0 : 1),
+      lastRunAt: now.toISOString(),
+      lastMode: mode,
+    };
+
+    if (withExpiry) {
+      await kv.set(key, next, { ex: USAGE_DAY_TTL_SECONDS });
+    } else {
+      await kv.set(key, next);
+    }
+  }
+
+  await Promise.all([
+    upsert(dayKey, true),
+    upsert(monthKey, false),
+  ]);
+}
+
+async function juroGet(path, budget) {
+  budget.calls++;
+  if (path.startsWith('/contracts?')) budget.listCalls++;
+  if (path.startsWith('/contracts/')) budget.detailCalls++;
+  if (budget.calls > budget.limit) {
+    throw new Error(`Juro API budget exceeded (${budget.calls}/${budget.limit})`);
+  }
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(`${JURO_BASE}${path}`, {
+      headers: { 'x-api-key': process.env.JURO_API_KEY },
+    });
+
+    if (res.ok) return res.json();
+
+    const body = await res.text().catch(() => '');
+    const isRetryable = res.status === 429 || res.status >= 500;
+    if (res.status === 429) budget.rateLimit429++;
+    if (!isRetryable || attempt === MAX_RETRIES) {
+      throw new Error(`Juro ${res.status} ${path}: ${body.slice(0, 200)}`);
+    }
+    budget.retries++;
+
+    const retryAfter = Number(res.headers.get('retry-after'));
+    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1000
+      : Math.min(15000, 500 * (2 ** (attempt - 1)));
+    await sleep(waitMs);
+  }
+}
+
+async function listContractIds(since, budget) {
   const ids = [];
   let skip = 0;
   const sinceParam = since ? `&updatedSince=${encodeURIComponent(since)}` : '';
   while (true) {
-    const data = await juroGet(`/contracts?limit=${PAGE_SIZE}&skip=${skip}${sinceParam}`);
+    const data = await juroGet(`/contracts?limit=${PAGE_SIZE}&skip=${skip}${sinceParam}`, budget);
     for (const c of (data.contracts || [])) ids.push(c.id);
     if (ids.length >= data.total || (data.contracts || []).length < PAGE_SIZE) break;
     skip += PAGE_SIZE;
@@ -39,17 +122,17 @@ async function listContractIds(since) {
   return ids;
 }
 
-async function fetchDetail(id) {
-  const data = await juroGet(`/contracts/${id}`);
+async function fetchDetail(id, budget) {
+  const data = await juroGet(`/contracts/${id}`, budget);
   return data.contract;
 }
 
-async function batchFetchDetails(ids) {
+async function batchFetchDetails(ids, budget) {
   const results = [];
   for (let i = 0; i < ids.length; i += BATCH_SIZE) {
     const batch = ids.slice(i, i + BATCH_SIZE);
     const fetched = await Promise.all(
-      batch.map(id => fetchDetail(id).catch(e => {
+      batch.map(id => fetchDetail(id, budget).catch(e => {
         console.warn(`[sync-juro] failed ${id}:`, e.message);
         return null;
       }))
@@ -167,6 +250,11 @@ function firstName(nameStr = '', emailStr = '') {
 // Real-time webhook events capture precise timestamps for new contracts.
 
 function buildRecord(detail) {
+  // Never store signed/completed contracts
+  if (['signed', 'fully_signed', 'countersigned'].includes((detail.status || '').toLowerCase())) {
+    return null;
+  }
+
   const approvers = detail.state?.approval?.approvers || [];
 
   // Find the contiguous legal-team block
@@ -233,6 +321,12 @@ module.exports = async function handler(req, res) {
 
   const apiKey = process.env.JURO_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'JURO_API_KEY not set' });
+  // Off by default — only webhook should touch live Juro traffic unless you explicitly re-enable sync.
+  if (process.env.JURO_SYNC_ENABLED !== 'true') {
+    return res.status(503).json({
+      error: 'Juro REST sync is disabled. Set JURO_SYNC_ENABLED=true in Vercel env to run a manual sync.',
+    });
+  }
 
   // ?full=true forces a complete re-sync ignoring last_synced timestamp
   const forceFull  = req.query?.full === 'true';
@@ -241,9 +335,24 @@ module.exports = async function handler(req, res) {
 
   console.log(`[sync-juro] mode=${mode}${lastSynced ? ` since=${lastSynced}` : ''}`);
 
+  const lockAcquired = await kv.set(LOCK_KEY, new Date().toISOString(), {
+    nx: true,
+    ex: LOCK_TTL_SECONDS,
+  });
+  if (!lockAcquired) {
+    return res.status(429).json({ error: 'Juro sync already in progress' });
+  }
+
+  const budget = { calls: 0, limit: MAX_API_CALLS_PER_RUN };
+  budget.listCalls = 0;
+  budget.detailCalls = 0;
+  budget.retries = 0;
+  budget.rateLimit429 = 0;
+  let ok = false;
+
   try {
     // 1. Fetch contract IDs (paginated, filtered by updatedSince on incremental)
-    const ids = await listContractIds(lastSynced);
+    const ids = await listContractIds(lastSynced, budget);
     console.log(`[sync-juro] ${ids.length} contracts to inspect`);
 
     if (ids.length === 0) {
@@ -252,15 +361,36 @@ module.exports = async function handler(req, res) {
     }
 
     // 2. Fetch full details in rate-limited batches
-    const details = await batchFetchDetails(ids);
+    const details = await batchFetchDetails(ids, budget);
 
-    // 3. Filter to legal-team contracts and build records
+    // 3. Filter to legal-team contracts and build records.
+    //    buildRecord returns null for contracts with no legal-team involvement
+    //    OR contracts that are already signed/completed.
     const records = details.map(buildRecord).filter(Boolean);
-    console.log(`[sync-juro] ${records.length}/${ids.length} contracts involve legal team`);
 
+    // 3b. Clean up contracts that have transitioned to signed since last sync.
+    //     These won't appear in records (buildRecord returned null for them),
+    //     but their IDs and keys may still be in Redis from a prior sync.
     // 4. Load existing Juro contract IDs
     const existingIds = (await kv.get('juro:contract_ids')) || [];
     const allIds      = new Set(existingIds);
+
+    const SIGNED_STATUSES = new Set(['signed', 'fully_signed', 'countersigned']);
+    const cleanupIds = details
+      .filter(d => d?.id && SIGNED_STATUSES.has((d.status || '').toLowerCase()))
+      .map(d => d.id);
+    if (cleanupIds.length) {
+      console.log(`[sync-juro] removing ${cleanupIds.length} signed contract(s) from store`);
+      for (const id of cleanupIds) {
+        allIds.delete(id);
+        await Promise.all([
+          kv.del(`juro:contract:${id}`),
+          kv.del(`juro:state:${id}`),
+        ]);
+      }
+    }
+    console.log(`[sync-juro] ${records.length}/${ids.length} contracts involve legal team`);
+
     const feedEvents  = [];
     let   loggedCount = 0;
 
@@ -357,7 +487,7 @@ module.exports = async function handler(req, res) {
     // 6. Publish feed events
     if (feedEvents.length) {
       for (const evt of feedEvents) await kv.lpush('feed', evt);
-      await kv.ltrim('feed', 0, 49);
+      await kv.ltrim('feed', 0, 499);
     }
 
     // 7. Update index and timestamps
@@ -372,10 +502,21 @@ module.exports = async function handler(req, res) {
       logged:    loggedCount,
       mode,
       events:    feedEvents.length,
+      apiCalls:  budget.calls,
+      apiBudget: budget.limit,
+      listCalls: budget.listCalls,
+      detailCalls: budget.detailCalls,
+      retries: budget.retries,
+      rateLimit429: budget.rateLimit429,
     });
+    ok = true;
 
   } catch (e) {
     console.error('[sync-juro] error:', e.message);
-    return res.status(500).json({ error: e.message });
+    const status = /Juro 429|budget exceeded/i.test(e.message) ? 429 : 500;
+    return res.status(status).json({ error: e.message });
+  } finally {
+    await recordUsageStats(budget, mode, ok);
+    await kv.del(LOCK_KEY);
   }
 };

@@ -1,10 +1,10 @@
 {
   "name": "legal-velocity",
   "version": "1.0.0",
-  "description": "Dashboard for tracking how long contracts spend with Elaine during the internal approval loop.",
+  "description": "Vercel dashboard for legal approval turnaround. Juro webhooks are primary; REST sync is opt-in (see README).",
   "main": "index.js",
   "scripts": {
-    "dev": "vercel dev --yes",
+    "vercel:local": "vercel dev --yes",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

@@ -1,10 +1,12 @@
 {
   "routes": [
     { "src": "/breach",  "dest": "/breach.html"  },
-    { "src": "/hygiene", "dest": "/hygiene.html" },
+    { "src": "/history", "dest": "/history.html" },
+    { "src": "/queue",   "dest": "/queue.html"   },
     { "src": "/api/(.*)", "dest": "/api/$1" }
   ],
   "crons": [
-    { "path": "/api/sync-juro", "schedule": "*/10 * * * *" }
+    { "path": "/api/sla-webhook-check", "schedule": "*/15 * * * *" },
+    { "path": "/api/sync-slack", "schedule": "0 8 * * 1"   }
   ]
 }

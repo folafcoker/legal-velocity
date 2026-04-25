@@ -1,5 +1,7 @@
 # Data Model
 
+Live ingestion paths and Redis keys are documented in **`README.md`**. As of 2026, **webhook-driven** updates are primary; optional Juro REST sync is documented there and off by default.
+
 ## Core concept
 
 Each **contract** has one or more **turns**.

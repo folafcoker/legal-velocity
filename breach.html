@@ -247,11 +247,11 @@ html, body {
 <body>
 <div class="page">
 
-  <div class="nav-back"><a href="/">← Dashboard</a></div>
+  <div class="nav-back"><a href="/">Live</a> · <a href="/history">History import</a> · <a href="/queue">Queue</a></div>
 
   <div class="page-header">
     <h1>SLA Breach Analysis</h1>
-    <p>Turns where Elaine's review exceeded the 48-hour SLA — with Slack nudges logged during each open turn.</p>
+    <p>From <strong>history import</strong> data only. Turns where review exceeded 48h — with Slack nudges from the embedded log where contract names line up.</p>
   </div>
 
   <div class="stat-row" id="stats">
@@ -294,206 +294,7 @@ html, body {
 
 <script>
 // ─────────────────────────────────────────────────────
-//  SEED DATA (same as index.html — overridden by live API)
-// ─────────────────────────────────────────────────────
-let CONTRACTS = [
-  { name:"NEA", counterparty:"Order Form & ToS", turns:[
-    { sentToElaine:"2026-03-02", sentAt:"2 Mar 10:16", sentBy:"", returnedDate:"2026-03-04", returnedAt:"4 Mar 04:29", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-04", sentAt:"4 Mar 09:50", sentBy:"Camilla", returnedDate:"2026-03-04", returnedAt:"4 Mar 17:28", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-11", sentAt:"11 Mar 22:04", sentBy:"Camilla", returnedDate:"2026-03-12", returnedAt:"12 Mar 23:29", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-13", sentAt:"13 Mar 17:22", sentBy:"Camilla", returnedDate:"2026-03-16", returnedAt:"16 Mar 17:41", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-23", sentAt:"23 Mar 09:27", sentBy:"Camilla", returnedDate:"2026-03-24", returnedAt:"24 Mar 21:12", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-24", sentAt:"24 Mar 21:50", sentBy:"Camilla", returnedDate:"2026-03-25", returnedAt:"25 Mar 05:30", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-25", sentAt:"25 Mar 10:23", sentBy:"Camilla", returnedDate:"2026-03-25", returnedAt:"25 Mar 15:34", returnedTo:"Camilla" },
-  ]},
-  { name:"PCIG", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-09", sentAt:"9 Mar 20:14", sentBy:"", returnedDate:"2026-03-11", returnedAt:"11 Mar 02:48", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-12", sentAt:"12 Mar 16:44", sentBy:"Camilla", returnedDate:"2026-03-12", returnedAt:"12 Mar 23:56", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-13", sentAt:"13 Mar 17:23", sentBy:"Camilla", returnedDate:"2026-03-16", returnedAt:"16 Mar 17:58", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-30", sentAt:"30 Mar 06:50", sentBy:"Camilla", returnedDate:"2026-03-31", returnedAt:"31 Mar 07:40", returnedTo:"Camilla" },
-    { sentToElaine:"2026-04-01", sentAt:"1 Apr 23:03", sentBy:"Camilla", returnedDate:"2026-04-02", returnedAt:"2 Apr 05:36", returnedTo:"Ryan" },
-    { sentToElaine:"2026-04-08", sentAt:"8 Apr 10:56", sentBy:"Ryan", returnedDate:"2026-04-08", returnedAt:"8 Apr 19:22", returnedTo:"Camilla" },
-    { sentToElaine:"2026-04-08", sentAt:"8 Apr 21:27", sentBy:"Camilla", returnedDate:null, returnedAt:null, returnedTo:null },
-  ]},
-  { name:"Chainguard", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-03", sentAt:"3 Mar 08:01", sentBy:"", returnedDate:"2026-03-05", returnedAt:"5 Mar 19:54", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-09", sentAt:"9 Mar 08:55", sentBy:"Nifesimi", returnedDate:"2026-03-11", returnedAt:"11 Mar 02:28", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-13", sentAt:"13 Mar 19:02", sentBy:"Nifesimi", returnedDate:"2026-03-17", returnedAt:"17 Mar 04:40", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-17", sentAt:"17 Mar 11:16", sentBy:"Nifesimi", returnedDate:"2026-03-17", returnedAt:"17 Mar 17:20", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-18", sentAt:"18 Mar 13:54", sentBy:"Nifesimi", returnedDate:"2026-03-18", returnedAt:"18 Mar 18:09", returnedTo:"Nifesimi" },
-  ]},
-  { name:"Deerfield", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-01", sentAt:"1 Mar 19:48", sentBy:"", returnedDate:"2026-03-02", returnedAt:"2 Mar 23:12", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-03", sentAt:"3 Mar 13:26", sentBy:"Camilla", returnedDate:"2026-03-04", returnedAt:"4 Mar 04:45", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-08", sentAt:"8 Mar 21:55", sentBy:"Camilla", returnedDate:"2026-03-09", returnedAt:"9 Mar 23:13", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-09", sentAt:"9 Mar 23:20", sentBy:"Camilla", returnedDate:"2026-03-10", returnedAt:"10 Mar 01:52", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-10", sentAt:"10 Mar 10:38", sentBy:"Camilla", returnedDate:"2026-03-11", returnedAt:"11 Mar 18:26", returnedTo:"Camilla" },
-  ]},
-  { name:"PandaDoc", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-18", sentAt:"18 Mar 01:32", sentBy:"", returnedDate:"2026-03-19", returnedAt:"19 Mar 03:32", returnedTo:"Ernesto" },
-    { sentToElaine:"2026-03-23", sentAt:"23 Mar 10:21", sentBy:"Ernesto", returnedDate:"2026-03-23", returnedAt:"23 Mar 20:25", returnedTo:"Ernesto" },
-    { sentToElaine:"2026-03-24", sentAt:"24 Mar 11:03", sentBy:"Ernesto", returnedDate:"2026-03-24", returnedAt:"24 Mar 20:37", returnedTo:"Ernesto" },
-    { sentToElaine:"2026-03-27", sentAt:"27 Mar 22:36", sentBy:"Ernesto", returnedDate:"2026-03-28", returnedAt:"28 Mar 04:47", returnedTo:"Ernesto" },
-    { sentToElaine:"2026-04-02", sentAt:"2 Apr 17:34", sentBy:"Ernesto", returnedDate:"2026-04-02", returnedAt:"2 Apr 23:01", returnedTo:"Ernesto" },
-  ]},
-  { name:"Amplitude", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-23", sentAt:"23 Mar 18:31", sentBy:"Ryan", returnedDate:"2026-03-25", returnedAt:"25 Mar 05:28", returnedTo:"Ryan" },
-    { sentToElaine:"2026-03-25", sentAt:"25 Mar 11:53", sentBy:"Ryan", returnedDate:"2026-03-25", returnedAt:"25 Mar 15:49", returnedTo:"Ryan" },
-    { sentToElaine:"2026-03-26", sentAt:"26 Mar 21:33", sentBy:"Ryan", returnedDate:"2026-03-27", returnedAt:"27 Mar 17:31", returnedTo:"Ryan" },
-    { sentToElaine:"2026-03-29", sentAt:"29 Mar 21:33", sentBy:"Ryan", returnedDate:"2026-03-30", returnedAt:"30 Mar 20:31", returnedTo:"Ryan" },
-  ]},
-  { name:"Citadel", counterparty:"AI Pilot Agreement", turns:[
-    { sentToElaine:"2026-03-13", sentAt:"13 Mar 19:19", sentBy:"", returnedDate:"2026-03-17", returnedAt:"17 Mar 05:22", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-24", sentAt:"24 Mar 16:29", sentBy:"Nifesimi", returnedDate:"2026-03-27", returnedAt:"27 Mar 20:03", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-29", sentAt:"29 Mar 16:36", sentBy:"Nifesimi", returnedDate:"2026-03-30", returnedAt:"30 Mar 20:52", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-30", sentAt:"30 Mar 21:06", sentBy:"Nifesimi", returnedDate:"2026-03-30", returnedAt:"30 Mar 23:54", returnedTo:"Nifesimi" },
-  ]},
-  { name:"Justworks", counterparty:"MSA", turns:[
-    { sentToElaine:"2026-03-17", sentAt:"17 Mar 11:45", sentBy:"", returnedDate:"2026-03-17", returnedAt:"17 Mar 18:28", returnedTo:"Ryan" },
-    { sentToElaine:"2026-03-17", sentAt:"17 Mar 21:34", sentBy:"Ryan", returnedDate:"2026-03-19", returnedAt:"19 Mar 19:15", returnedTo:"Ryan" },
-    { sentToElaine:"2026-03-20", sentAt:"20 Mar 20:14", sentBy:"Ryan", returnedDate:"2026-03-23", returnedAt:"23 Mar 06:30", returnedTo:"Ryan" },
-    { sentToElaine:"2026-03-25", sentAt:"25 Mar 16:54", sentBy:"Ryan", returnedDate:"2026-03-25", returnedAt:"25 Mar 19:32", returnedTo:"Ryan" },
-  ]},
-  { name:"Astronomer.io", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-03", sentAt:"3 Mar 15:45", sentBy:"", returnedDate:"2026-03-04", returnedAt:"4 Mar 03:17", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-12", sentAt:"12 Mar 15:32", sentBy:"Nifesimi", returnedDate:"2026-03-12", returnedAt:"12 Mar 23:11", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-12", sentAt:"12 Mar 23:22", sentBy:"Nifesimi", returnedDate:"2026-03-12", returnedAt:"12 Mar 23:35", returnedTo:"Nifesimi" },
-  ]},
-  { name:"CharlesBank", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-20", sentAt:"20 Mar 19:20", sentBy:"", returnedDate:"2026-03-25", returnedAt:"25 Mar 03:22", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-26", sentAt:"26 Mar 20:52", sentBy:"Camilla", returnedDate:"2026-04-01", returnedAt:"1 Apr 00:11", returnedTo:"Camilla" },
-    { sentToElaine:"2026-04-07", sentAt:"7 Apr 16:01", sentBy:"Camilla", returnedDate:"2026-04-08", returnedAt:"8 Apr 19:30", returnedTo:"Camilla" },
-  ]},
-  { name:"Customer.io", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-04", sentAt:"4 Mar 09:41", sentBy:"Nifesimi", returnedDate:"2026-03-04", returnedAt:"4 Mar 18:44", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-06", sentAt:"6 Mar 19:22", sentBy:"Nifesimi", returnedDate:"2026-03-06", returnedAt:"6 Mar 23:36", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-11", sentAt:"11 Mar 09:27", sentBy:"Nifesimi", returnedDate:"2026-03-12", returnedAt:"12 Mar 15:32", returnedTo:"Nifesimi" },
-  ]},
-  { name:"DevRev", counterparty:"Order Form", turns:[
-    { sentToElaine:"2026-03-31", sentAt:"31 Mar 15:02", sentBy:"", returnedDate:"2026-03-31", returnedAt:"31 Mar 23:58", returnedTo:"Ernesto" },
-    { sentToElaine:"2026-04-01", sentAt:"1 Apr 00:16", sentBy:"Ernesto", returnedDate:"2026-04-02", returnedAt:"2 Apr 05:23", returnedTo:"Ernesto" },
-    { sentToElaine:"2026-04-04", sentAt:"4 Apr 19:14", sentBy:"Ernesto", returnedDate:"2026-04-08", returnedAt:"8 Apr 17:09", returnedTo:"Ernesto" },
-  ]},
-  { name:"G2", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-20", sentAt:"20 Mar 15:40", sentBy:"", returnedDate:"2026-03-24", returnedAt:"24 Mar 19:23", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-25", sentAt:"25 Mar 17:02", sentBy:"Nifesimi", returnedDate:"2026-03-25", returnedAt:"25 Mar 20:06", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-30", sentAt:"30 Mar 21:25", sentBy:"Nifesimi", returnedDate:"2026-03-31", returnedAt:"31 Mar 21:09", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-04-09", sentAt:"9 Apr 14:58", sentBy:"Nifesimi", returnedDate:null, returnedAt:null, returnedTo:null },
-  ]},
-  { name:"Checkr", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-18", sentAt:"18 Mar 20:52", sentBy:"", returnedDate:"2026-03-19", returnedAt:"19 Mar 04:27", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-19", sentAt:"19 Mar 14:55", sentBy:"Camilla", returnedDate:"2026-03-19", returnedAt:"19 Mar 18:04", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-20", sentAt:"20 Mar 17:39", sentBy:"Camilla", returnedDate:"2026-03-20", returnedAt:"20 Mar 19:30", returnedTo:"Camilla" },
-  ]},
-  { name:"Gladly", counterparty:"Platform Terms", turns:[
-    { sentToElaine:"2026-04-01", sentAt:"1 Apr 01:37", sentBy:"", returnedDate:"2026-04-03", returnedAt:"3 Apr 02:02", returnedTo:"Bob" },
-    { sentToElaine:"2026-04-03", sentAt:"3 Apr 19:06", sentBy:"Bob", returnedDate:"2026-04-07", returnedAt:"7 Apr 20:37", returnedTo:"Bob" },
-    { sentToElaine:"2026-04-08", sentAt:"8 Apr 18:01", sentBy:"Bob", returnedDate:"2026-04-08", returnedAt:"8 Apr 23:43", returnedTo:"Bob" },
-  ]},
-  { name:"Mozilla", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-02", sentAt:"2 Mar 05:06", sentBy:"", returnedDate:"2026-03-02", returnedAt:"2 Mar 23:17", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-17", sentAt:"17 Mar 10:29", sentBy:"Camilla", returnedDate:"2026-03-17", returnedAt:"17 Mar 18:51", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-17", sentAt:"17 Mar 19:00", sentBy:"Camilla", returnedDate:"2026-03-17", returnedAt:"17 Mar 20:02", returnedTo:"Camilla" },
-  ]},
-  { name:"Komodo Health", counterparty:"MSA", turns:[
-    { sentToElaine:"2026-03-23", sentAt:"23 Mar 13:56", sentBy:"", returnedDate:"2026-03-25", returnedAt:"25 Mar 05:00", returnedTo:"Ryan" },
-    { sentToElaine:"2026-03-26", sentAt:"26 Mar 21:43", sentBy:"Ryan", returnedDate:"2026-03-28", returnedAt:"28 Mar 04:59", returnedTo:"Ryan" },
-    { sentToElaine:"2026-04-07", sentAt:"7 Apr 18:13", sentBy:"Ryan", returnedDate:"2026-04-09", returnedAt:"9 Apr 06:26", returnedTo:"Ryan" },
-    { sentToElaine:"2026-04-09", sentAt:"9 Apr 13:20", sentBy:"Ryan", returnedDate:null, returnedAt:null, returnedTo:null },
-  ]},
-  { name:"Pinterest", counterparty:"DPA", turns:[
-    { sentToElaine:"2026-03-02", sentAt:"2 Mar 10:59", sentBy:"", returnedDate:"2026-03-05", returnedAt:"5 Mar 17:57", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-06", sentAt:"6 Mar 14:24", sentBy:"Camilla", returnedDate:"2026-03-06", returnedAt:"6 Mar 18:56", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-11", sentAt:"11 Mar 19:57", sentBy:"Camilla", returnedDate:"2026-03-12", returnedAt:"12 Mar 22:05", returnedTo:"Camilla" },
-  ]},
-  { name:"Pinterest", counterparty:"Security Exhibit", turns:[
-    { sentToElaine:"2026-03-02", sentAt:"2 Mar 10:45", sentBy:"", returnedDate:"2026-03-05", returnedAt:"5 Mar 17:46", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-05", sentAt:"5 Mar 17:57", sentBy:"Camilla", returnedDate:"2026-03-05", returnedAt:"5 Mar 18:10", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-11", sentAt:"11 Mar 19:48", sentBy:"Camilla", returnedDate:"2026-03-12", returnedAt:"12 Mar 22:00", returnedTo:"Camilla" },
-  ]},
-  { name:"9Fin", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-19", sentAt:"19 Mar 17:23", sentBy:"", returnedDate:"2026-03-24", returnedAt:"24 Mar 17:24", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-26", sentAt:"26 Mar 11:13", sentBy:"Nifesimi", returnedDate:"2026-03-28", returnedAt:"28 Mar 04:38", returnedTo:"Nifesimi" },
-  ]},
-  { name:"Axelera AI", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-02-25", sentAt:"25 Feb 12:19", sentBy:"", returnedDate:"2026-02-28", returnedAt:"28 Feb 02:52", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-04", sentAt:"4 Mar 16:23", sentBy:"Nifesimi", returnedDate:"2026-03-04", returnedAt:"4 Mar 17:22", returnedTo:"Nifesimi" },
-  ]},
-  { name:"Barrenjoey", counterparty:"Commercial MNDA", turns:[
-    { sentToElaine:"2026-04-01", sentAt:"1 Apr 16:05", sentBy:"", returnedDate:"2026-04-02", returnedAt:"2 Apr 05:30", returnedTo:"Palmer" },
-    { sentToElaine:"2026-04-08", sentAt:"8 Apr 13:51", sentBy:"Palmer", returnedDate:"2026-04-08", returnedAt:"8 Apr 22:31", returnedTo:"Palmer" },
-  ]},
-  { name:"Tatari", counterparty:"Order Form", turns:[
-    { sentToElaine:"2026-03-23", sentAt:"23 Mar 21:37", sentBy:"", returnedDate:"2026-03-27", returnedAt:"27 Mar 21:08", returnedTo:"Camilla" },
-    { sentToElaine:"2026-04-07", sentAt:"7 Apr 13:18", sentBy:"Camilla", returnedDate:"2026-04-08", returnedAt:"8 Apr 17:25", returnedTo:"Camilla" },
-  ]},
-  { name:"BCV", counterparty:"POC Agreement", turns:[
-    { sentToElaine:"2026-03-26", sentAt:"26 Mar 17:41", sentBy:"", returnedDate:"2026-03-31", returnedAt:"31 Mar 07:13", returnedTo:"Camilla" },
-    { sentToElaine:"2026-04-08", sentAt:"8 Apr 14:00", sentBy:"Camilla", returnedDate:"2026-04-08", returnedAt:"8 Apr 23:25", returnedTo:"Camilla" },
-  ]},
-  { name:"TA", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-19", sentAt:"19 Mar 22:25", sentBy:"", returnedDate:"2026-03-20", returnedAt:"20 Mar 18:43", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-23", sentAt:"23 Mar 21:35", sentBy:"Camilla", returnedDate:"2026-03-25", returnedAt:"25 Mar 03:24", returnedTo:"Camilla" },
-  ]},
-  { name:"M&G", counterparty:"MNDA", turns:[
-    { sentToElaine:"2026-03-10", sentAt:"10 Mar 10:18", sentBy:"", returnedDate:"2026-03-11", returnedAt:"11 Mar 03:07", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-20", sentAt:"20 Mar 15:27", sentBy:"Nifesimi", returnedDate:"2026-03-25", returnedAt:"25 Mar 03:53", returnedTo:"Nifesimi" },
-  ]},
-  { name:"Optimizely", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-04-02", sentAt:"2 Apr 21:18", sentBy:"", returnedDate:"2026-04-03", returnedAt:"3 Apr 03:11", returnedTo:"Ernesto" },
-    { sentToElaine:"2026-04-07", sentAt:"7 Apr 17:50", sentBy:"Ernesto", returnedDate:"2026-04-08", returnedAt:"8 Apr 23:04", returnedTo:"Ernesto" },
-  ]},
-  { name:"Pinterest", counterparty:"PoC Agreement", turns:[
-    { sentToElaine:"2026-03-04", sentAt:"4 Mar 09:51", sentBy:"", returnedDate:"2026-03-05", returnedAt:"5 Mar 18:33", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-06", sentAt:"6 Mar 14:27", sentBy:"Camilla", returnedDate:"2026-03-06", returnedAt:"6 Mar 18:16", returnedTo:"Camilla" },
-  ]},
-  { name:"Posthog", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-17", sentAt:"17 Mar 17:57", sentBy:"", returnedDate:"2026-03-20", returnedAt:"20 Mar 04:26", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-03-20", sentAt:"20 Mar 14:57", sentBy:"Nifesimi", returnedDate:"2026-03-27", returnedAt:"27 Mar 19:57", returnedTo:"Nifesimi" },
-    { sentToElaine:"2026-04-09", sentAt:"9 Apr 13:04", sentBy:"Nifesimi", returnedDate:null, returnedAt:null, returnedTo:null },
-  ]},
-  { name:"TR", counterparty:"Contract Redline", turns:[
-    { sentToElaine:"2026-03-13", sentAt:"13 Mar 16:50", sentBy:"", returnedDate:"2026-03-17", returnedAt:"17 Mar 04:04", returnedTo:"Ernesto" },
-    { sentToElaine:"2026-03-17", sentAt:"17 Mar 17:44", sentBy:"Ernesto", returnedDate:"2026-03-17", returnedAt:"17 Mar 19:12", returnedTo:"Ernesto" },
-  ]},
-  { name:"Thumbtack", counterparty:"Order Form", turns:[
-    { sentToElaine:"2026-03-09", sentAt:"9 Mar 21:48", sentBy:"Camilla", returnedDate:"2026-03-09", returnedAt:"9 Mar 22:15", returnedTo:"Camilla" },
-    { sentToElaine:"2026-03-09", sentAt:"9 Mar 23:17", sentBy:"Camilla", returnedDate:"2026-03-11", returnedAt:"11 Mar 17:26", returnedTo:"Camilla" },
-  ]},
-  { name:"Airtable", counterparty:"MNDA", turns:[
-    { sentToElaine:"2026-03-17", sentAt:"17 Mar 20:49", sentBy:"", returnedDate:"2026-03-18", returnedAt:"18 Mar 16:16", returnedTo:"Ernesto" },
-  ]},
-  { name:"Docker", counterparty:"Order Form", turns:[
-    { sentToElaine:"2026-03-30", sentAt:"30 Mar 20:10", sentBy:"", returnedDate:"2026-03-31", returnedAt:"31 Mar 21:31", returnedTo:"Palmer" },
-  ]},
-  { name:"K1", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-19", sentAt:"19 Mar 13:32", sentBy:"", returnedDate:"2026-03-24", returnedAt:"24 Mar 15:13", returnedTo:"Will" },
-  ]},
-  { name:"a16z", counterparty:"Renewal", turns:[
-    { sentToElaine:"2026-03-23", sentAt:"23 Mar 22:13", sentBy:"", returnedDate:"2026-03-30", returnedAt:"30 Mar 20:19", returnedTo:"Ryan" },
-  ]},
-  { name:"M&G", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-26", sentAt:"26 Mar 15:24", sentBy:"", returnedDate:"2026-03-31", returnedAt:"31 Mar 06:34", returnedTo:"Will" },
-  ]},
-  { name:"Red Ventures", counterparty:"Order Form", turns:[
-    { sentToElaine:"2026-04-01", sentAt:"1 Apr 19:22", sentBy:"", returnedDate:"2026-04-02", returnedAt:"2 Apr 05:57", returnedTo:"Palmer" },
-  ]},
-  { name:"BCV", counterparty:"MNDA", turns:[
-    { sentToElaine:"2026-03-18", sentAt:"18 Mar 18:02", sentBy:"", returnedDate:"2026-03-19", returnedAt:"19 Mar 03:38", returnedTo:"Camilla" },
-  ]},
-  { name:"Confidentiality Agreement", counterparty:"Mar 2026", turns:[
-    { sentToElaine:"2026-03-27", sentAt:"27 Mar 22:37", sentBy:"", returnedDate:"2026-03-31", returnedAt:"31 Mar 21:16", returnedTo:"Ernesto" },
-  ]},
-  { name:"PagerDuty", counterparty:"MNDA", turns:[
-    { sentToElaine:"2026-03-20", sentAt:"20 Mar 00:51", sentBy:"", returnedDate:"2026-03-20", returnedAt:"20 Mar 04:27", returnedTo:"Ernesto" },
-  ]},
-  { name:"9Fin", counterparty:"Enterprise Order Form", turns:[
-    { sentToElaine:"2026-03-26", sentAt:"26 Mar 11:13", sentBy:"Nifesimi", returnedDate:"2026-03-28", returnedAt:"28 Mar 04:38", returnedTo:"Nifesimi" },
-  ]},
-  { name:"Thumbtack", counterparty:"DPA", turns:[
-    { sentToElaine:"2026-03-06", sentAt:"6 Mar 19:13", sentBy:"", returnedDate:null, returnedAt:null, returnedTo:null },
-  ]},
-];
+let CONTRACTS = [];
 
 // ─────────────────────────────────────────────────────
 //  REQUESTS (Slack nudges log)
@@ -927,7 +728,7 @@ function renderStats(breaches, allTurns) {
 // ─────────────────────────────────────────────────────
 async function init() {
   try {
-    const res = await fetch('/api/contracts');
+    const res = await fetch('/api/import-contracts');
     if (res.ok) {
       const { contracts: live } = await res.json();
       if (live && live.length) {
@@ -935,7 +736,7 @@ async function init() {
         for (const c of live) CONTRACTS.push(c);
       }
     }
-  } catch(e) { /* keep seed data */ }
+  } catch (e) { /* empty */ }
 
   const allTurns = CONTRACTS.flatMap(c => c.turns);
 

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>History import — Legal velocity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --txt: #111; --txt-2: #888; --txt-3: #bbb; --line: #ebebeb; --sub-bg: #fafafa;
+  --good: #16a34a; --warn: #ca8a04; --bad: #dc2626;
+  --f: 'Inter', system-ui, sans-serif; --mono: 'Fira Code', monospace;
+}
+html, body { font-family: var(--f); background: #fff; color: var(--txt); font-size: 13px; -webkit-font-smoothing: antialiased; }
+.page { max-width: 700px; margin: 0 auto; padding: 48px 24px 80px; }
+h1 { font-size: 15px; font-weight: 500; letter-spacing: -0.2px; }
+.intro { color: var(--txt-2); font-size: 12px; margin: 8px 0; line-height: 1.55; }
+nav { font-size: 12px; margin: 16px 0 28px; }
+nav a { color: var(--txt-2); text-decoration: none; margin-right: 16px; }
+nav a:hover { color: var(--txt); text-decoration: underline; }
+nav a.on { color: var(--txt); font-weight: 500; }
+h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--txt-3); font-weight: 500; margin: 28px 0 8px; }
+label { display: block; font-size: 12px; color: var(--txt-2); margin-bottom: 6px; }
+textarea {
+  width: 100%;
+  min-height: 200px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  resize: vertical;
+}
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
+input[type="password"] { width: 220px; font-size: 12px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; font-family: var(--mono); }
+button {
+  background: #111; color: #fff; border: 0; border-radius: 6px;
+  padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--f);
+}
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.sec { background: #fff; color: #111; border: 1px solid var(--line); }
+.hint { font-size: 11px; color: #9ca3af; margin-top: 8px; }
+.out { font-family: var(--mono); font-size: 12px; background: #fafafa; border: 1px solid var(--line); border-radius: 6px; padding: 10px; margin: 10px 0; white-space: pre-wrap; word-break: break-word; }
+.out.ok { color: #15803d; }
+.out.err { color: #b91c1c; }
+code { font-family: var(--mono); font-size: 11px; background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+#preview-wrap { max-height: 72vh; overflow: auto; margin-top: 12px; }
+#pe { font-size: 11px; color: var(--txt-3); margin-bottom: 10px; }
+/* — Queue-matched list — */
+.col-headers {
+  display: grid;
+  grid-template-columns: 1fr 130px 130px 80px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px; font-weight: 500; color: var(--txt-3);
+  letter-spacing: 0.2px;
+}
+.col-headers span:not(:first-child) { text-align: right; }
+.contract { border-bottom: 1px solid var(--line); }
+.contract:last-child { border-bottom: none; }
+.contract-row {
+  display: grid;
+  grid-template-columns: 1fr 130px 130px 80px;
+  align-items: center;
+  padding: 13px 0;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+.contract-row:hover { opacity: 0.7; }
+.ct-name-wrap { display: flex; align-items: center; gap: 8px; }
+.chevron {
+  width: 14px; height: 14px; flex-shrink: 0; color: var(--txt-3);
+  transition: transform 0.18s ease;
+}
+.contract.open .chevron { transform: rotate(90deg); }
+.ct-name { font-size: 13px; font-weight: 500; }
+.ct-party { font-size: 11.5px; color: var(--txt-2); margin-top: 2px; }
+.turn-count { font-size: 11.5px; color: var(--txt-2); text-align: right; }
+.turn-count strong { color: var(--txt); font-weight: 500; }
+.avg-days {
+  font-family: var(--mono); font-size: 19px; font-weight: 400; letter-spacing: -0.5px;
+  text-align: right;
+}
+.avg-days .unit { font-size: 11px; color: var(--txt-3); }
+.avg-days.fast { color: var(--good); }
+.avg-days.warn { color: var(--warn); }
+.avg-days.slow { color: var(--bad); }
+.avg-days.pending { color: var(--txt-3); font-size: 14px; }
+.turns { display: none; background: var(--sub-bg); border-top: 1px solid var(--line); padding: 2px 0; }
+.contract.open .turns { display: block; }
+.turn-row { border-bottom: 1px solid var(--line); }
+.turn-row:last-child { border-bottom: none; }
+.turn-main {
+  display: grid;
+  grid-template-columns: 1fr 130px 130px 80px;
+  align-items: center;
+  padding: 10px 0 10px 22px;
+}
+.turn-label {
+  font-size: 11px; font-weight: 500; color: var(--txt-3);
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.turn-people { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--txt-2); margin-top: 3px; }
+.turn-person { font-weight: 500; color: var(--txt); }
+.turn-arrow { color: var(--txt-3); font-size: 10px; }
+.turn-elaine { font-weight: 500; color: #6366f1; }
+.ts-val { font-family: var(--mono); font-size: 11.5px; color: var(--txt-2); text-align: right; display: block; }
+.pending-dash { font-size: 13px; color: var(--txt-3); text-align: right; display: block; }
+.days-wrap { display: flex; align-items: baseline; justify-content: flex-end; gap: 2px; }
+.days-num {
+  font-family: var(--mono); font-size: 19px; font-weight: 400; letter-spacing: -0.5px; line-height: 1;
+}
+.days-unit { font-family: var(--mono); font-size: 11px; color: var(--txt-3); }
+.days-num.fast { color: var(--good); }
+.days-num.warn { color: var(--warn); }
+.days-num.slow { color: var(--bad); }
+.days-num.pending { color: var(--txt-2); font-size: 17px; }
+.dur-hours { font-family: var(--mono); font-size: 10px; color: var(--txt-3); margin-left: 3px; }
+.avg-hours { font-family: var(--mono); font-size: 10px; color: var(--txt-3); margin-left: 2px; }
+.dash { font-family: var(--mono); font-size: 14px; color: var(--txt-3); text-align: right; display: block; }
+#import-footer {
+  display: grid;
+  grid-template-columns: 1fr 130px 130px 80px;
+  padding: 12px 0 0;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--txt-3);
+}
+#import-footer .avg-days { text-align: right; }
+.legacy-tbl { width: 100%; font-size: 12px; border-collapse: collapse; }
+.legacy-tbl th, .legacy-tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>History import</h1>
+  <p class="intro"><strong>Juro Activity (easiest):</strong> from Juro → Activity, copy the table (or the list). Each row is three lines: <em>{Name} sent for approval … template with filename</em>, then the time, then the email of whoever took the action. We parse the name before <code>sent for approval</code> (e.g. <q>Elaine Foreman</q> vs commercial). <strong>JSON / TSV</strong> still work as before. Duplicates are skipped.</p>
+  <nav>
+    <a href="/">Live</a>
+    <a class="on" href="/history">History import</a>
+    <a href="/breach">Breach</a>
+    <a href="/queue">Queue</a>
+  </nav>
+
+  <h2>Import</h2>
+  <label for="paste">Paste</label>
+  <textarea id="paste" placeholder='JSON array, or TSV with header row, e.g.:
+contractName	sentDate	returnedDate	sentBy
+Acme MNDA	2026-01-10	2026-01-12	Camilla'></textarea>
+  <div class="row">
+    <label><input type="checkbox" id="dry"> Dry run (validate only)</label>
+  </div>
+  <div class="row">
+    <div>
+      <label for="tok">Paste token</label>
+      <input type="password" id="tok" placeholder="If LEGAL_PASTE_TOKEN is set" autocomplete="off" />
+    </div>
+  </div>
+  <div class="row">
+    <button type="button" id="go">Import</button>
+    <button type="button" id="ref" class="sec">Reload history list</button>
+  </div>
+  <p class="hint">If <code>LEGAL_PASTE_TOKEN</code> is not set in Vercel, imports work without a token. With it, pass the same value as a Bearer token or the field above.</p>
+  <div id="msg"></div>
+
+  <h2>Imported history</h2>
+  <p class="intro">Same layout as <a href="/queue">Queue</a>: contract blocks, TURN rows, and business hours / SLA colours. <strong>Juro</strong> only has <em>sent for approval</em>: a turn <strong>opens</strong> when a commercial name appears in the action line, and <strong>closes</strong> when the name before <q>sent for approval</q> is <strong>Elaine</strong> or <strong>Julie</strong> (we use that, not the third line alone—some pastes still put a team inbox on line 3 for commercial actions). <strong>Re-import</strong> after logic changes so stored rows re-classify. TSV/JSON with explicit sent + return still work. Data is only what you import here.</p>
+  <div id="preview-wrap">
+    <p id="pe"></p>
+    <div id="contract-list" style="display:none"></div>
+    <div id="import-footer" style="display:none"></div>
+  </div>
+</div>
+<script>
+const T = 'lv-paste-tok';
+const SLA_HOURS = 48;
+document.getElementById('tok').value = localStorage.getItem(T) || '';
+
+document.getElementById('go').onclick = async () => {
+  const msg = document.getElementById('msg');
+  const text = document.getElementById('paste').value;
+  if (!text.trim()) { msg.innerHTML = '<div class="out err">Nothing to import.</div>'; return; }
+  const token = document.getElementById('tok').value.trim();
+  if (token) localStorage.setItem(T, token);
+  const dry = document.getElementById('dry').checked;
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  msg.innerHTML = '<div class="out">Sending…</div>';
+  try {
+    const q = dry ? '?dry=1' : '';
+    const r = await fetch('/api/juro-paste' + q, { method: 'POST', headers, body: JSON.stringify({ text }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.status);
+    const line = 'OK' + (j.dryRun ? ' (dry run)' : '') + ': rows ' + j.rows + ', new events ' + j.eventsLogged + ', skipped ' + j.skipped;
+    msg.innerHTML = '<div class="out ok">' + line + '</div>';
+    if (!j.dryRun) loadTable();
+  } catch (e) {
+    msg.innerHTML = '<div class="out err">' + (e.message || e) + '</div>';
+  }
+};
+
+// —— Same time math as queue.html (business days / SLA colours) ——
+const US_HOLIDAYS = new Set([
+  '2026-01-01', '2026-01-19', '2026-02-16', '2026-05-25', '2026-06-19',
+  '2026-07-03', '2026-09-07', '2026-10-12', '2026-11-11', '2026-11-26', '2026-12-25',
+]);
+function isBusinessDay(utcDayStartMs) {
+  const d = new Date(utcDayStartMs);
+  const dow = d.getUTCDay();
+  if (dow === 0 || dow === 6) return false;
+  return !US_HOLIDAYS.has(d.toISOString().slice(0, 10));
+}
+function businessHoursBetween(startMs, endMs) {
+  if (endMs <= startMs) return 0;
+  const MS_PER_DAY = 86400000;
+  let bh = 0;
+  let dayStart = Math.floor(startMs / MS_PER_DAY) * MS_PER_DAY;
+  while (dayStart < endMs) {
+    if (isBusinessDay(dayStart)) {
+      const lo = Math.max(startMs, dayStart);
+      const hi = Math.min(endMs, dayStart + MS_PER_DAY);
+      if (hi > lo) bh += (hi - lo) / 3600000;
+    }
+    dayStart += MS_PER_DAY;
+  }
+  return bh;
+}
+function parseTs(s) {
+  if (!s) return null;
+  try { return new Date(s + ' 2026'); } catch (e) { return null; }
+}
+function turnStartMsFromTurn(turn) {
+  if (turn.openedAtIso) {
+    const d = new Date(turn.openedAtIso);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  if (turn.sentAt) {
+    const d = new Date(turn.sentAt + ' 2026');
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  if (turn.sentToElaine) {
+    return new Date(turn.sentToElaine + 'T12:00:00.000Z').getTime();
+  }
+  return null;
+}
+function openPendingBusinessHours(turn) {
+  if (turn.returnedDate) return null;
+  const a = turnStartMsFromTurn(turn);
+  if (a == null) return null;
+  return businessHoursBetween(a, Date.now());
+}
+function hoursBetweenTs(sentAt, returnedAt) {
+  const a = parseTs(sentAt);
+  const b = parseTs(returnedAt);
+  if (!a || !b) return null;
+  return businessHoursBetween(a.getTime(), b.getTime());
+}
+function daysBetween(a, b) {
+  const startMs = new Date(a).getTime();
+  const endMs = new Date(b).getTime();
+  return Math.round(businessHoursBetween(startMs, endMs) / 24);
+}
+function fmtDate(s) {
+  return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function durationFor(turn) {
+  if (!turn.returnedDate) return null;
+  const hrs = hoursBetweenTs(turn.sentAt, turn.returnedAt);
+  if (hrs !== null && hrs >= 0) {
+    return { d: Math.floor(hrs / 24), h: Math.round(hrs % 24), totalH: Math.round(hrs) };
+  }
+  const d = daysBetween(turn.sentToElaine, turn.returnedDate);
+  return { d, h: null, totalH: d * 24 };
+}
+function daysClass(d) {
+  return d <= 3 ? 'fast' : d <= 7 ? 'warn' : 'slow';
+}
+function slaClass(totalH) {
+  return totalH <= 24 ? 'fast' : totalH <= SLA_HOURS ? 'warn' : 'slow';
+}
+function avgHoursFor(turns) {
+  const hrs = turns.map((t) => {
+    const d = durationFor(t);
+    return d ? d.totalH : null;
+  }).filter((h) => h != null);
+  if (!hrs.length) return null;
+  return hrs.reduce((s, v) => s + v, 0) / hrs.length;
+}
+function fmtAvg(turns) {
+  const withReturn = turns.filter((t) => t.returnedDate);
+  const avgH = avgHoursFor(withReturn);
+  if (avgH == null) return null;
+  const d = (avgH / 24).toFixed(1);
+  const h = Math.round(avgH);
+  return { d, h, cls: daysClass(avgH / 24) };
+}
+function contractAvg(turns) {
+  return fmtAvg(turns);
+}
+function durHTML(dur) {
+  const cls = slaClass(dur.totalH);
+  const hStr = '<span class="dur-hours">(' + dur.totalH + 'h)</span>';
+  return '<div class="days-wrap"><span class="days-num ' + cls + '">' + dur.d + '</span><span class="days-unit">d</span>' + hStr + '</div>';
+}
+function avgHTML(avg) {
+  return avg.d + '<span class="unit">d</span><span class="avg-hours">(' + avg.h + 'h)</span>';
+}
+
+function apiTurnToQueueTurn(t) {
+  return {
+    sentToElaine: t.outDate,
+    returnedDate: t.inDate,
+    sentAt: t.outAt && t.outAt !== '—' ? t.outAt : null,
+    returnedAt: t.inAt && t.inAt !== '—' ? t.inAt : null,
+    sentBy: t.sentBy,
+    returnedTo: t.returnedTo,
+    stale: t.stale === true,
+  };
+}
+function displaySent(turn) {
+  return turn.sentAt || (turn.sentToElaine ? fmtDate(turn.sentToElaine) : '—');
+}
+function displayReturn(turn) {
+  if (!turn.returnedDate) return null;
+  return turn.returnedAt || fmtDate(turn.returnedDate);
+}
+function turnRowHTML(turn, turnIdx) {
+  const sentBy = turn.sentBy || '';
+  const returnedTo = turn.returnedTo || '';
+  const peopleHTML = '<div class="turn-people">' +
+    '<span class="turn-person">' + esc(sentBy || '—') + '</span>' +
+    '<span class="turn-arrow">›</span>' +
+    '<span class="turn-elaine">Elaine</span>' +
+    (returnedTo ? '<span class="turn-arrow">›</span><span class="turn-person">' + esc(returnedTo) + '</span>' : '') +
+    '</div>';
+  const sentAt = displaySent(turn);
+  const returnedAt = displayReturn(turn);
+  const dur = durationFor(turn);
+  const rawOpenH = !turn.returnedDate && !turn.stale ? openPendingBusinessHours(turn) : null;
+  // If there is no in-date and hours with legal exceed one week, treat like stale (import snapshot, not live queue).
+  const longOpen = rawOpenH != null && rawOpenH > 168;
+  const openH = longOpen ? null : rawOpenH;
+  const staleUi = turn.stale || longOpen;
+  const openCls = openH != null
+    ? (openH > SLA_HOURS ? 'slow' : openH > 24 ? 'warn' : 'pending')
+    : 'pending';
+  const inCell = returnedAt ? esc(String(returnedAt)) : '—';
+  let daysCell;
+  if (dur) {
+    daysCell = durHTML(dur);
+  } else if (staleUi) {
+    daysCell = '<span class="dash" title="No paired legal send in this import, or turn is too old for a live clock">—</span>';
+  } else if (openH != null) {
+    daysCell = '<div class="days-wrap"><span class="days-num ' + openCls + '">' + openH.toFixed(0) + '</span><span class="days-unit">h</span><span class="dur-hours">(with legal)</span></div>';
+  } else {
+    daysCell = '<span class="dash">—</span>';
+  }
+  return '<div class="turn-row">' +
+    '<div class="turn-main">' +
+    '<div><div class="turn-label">Turn ' + (turnIdx + 1) + '</div>' + peopleHTML + '</div>' +
+    '<span class="ts-val">' + esc(sentAt) + '</span>' +
+    '<span class="' + (returnedAt ? 'ts-val' : 'pending-dash') + '">' + inCell + '</span>' +
+    daysCell +
+    '</div></div>';
+}
+function contractBlockHTML(g) {
+  const turns = [...g.turns].reverse().map(apiTurnToQueueTurn);
+  const a = contractAvg(turns);
+  const totalTurns = turns.length;
+  const turnsHTML = turns.map((t, ti) => turnRowHTML(t, ti)).join('');
+  return '<div class="contract">' +
+    '<div class="contract-row">' +
+    '<div class="ct-name-wrap">' +
+    '<svg class="chevron" viewBox="0 0 14 14" fill="none"><path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+    '<div><div class="ct-name">' + esc(g.name) + '</div><div class="ct-party">' + esc(g.counterparty) + '</div></div></div>' +
+    '<div class="turn-count" style="text-align:right"><strong>' + totalTurns + '</strong> turn' + (totalTurns !== 1 ? 's' : '') + '</div><div></div>' +
+    '<div class="avg-days ' + (a != null ? a.cls : 'pending') + '">' + (a != null ? avgHTML(a) : '—') + '</div></div>' +
+    '<div class="turns">' + turnsHTML + '</div></div>';
+}
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+async function loadTable() {
+  const pe = document.getElementById('pe');
+  const list = document.getElementById('contract-list');
+  const foot = document.getElementById('import-footer');
+  pe.textContent = 'Loading…';
+  list.style.display = 'none';
+  foot.style.display = 'none';
+  list.innerHTML = '';
+  try {
+    const r = await fetch('/api/import-history?limit=200');
+    if (!r.ok) throw new Error('API ' + r.status);
+    const d = await r.json();
+    pe.textContent = d.contractGroups && d.contractGroups.length
+      ? (d.displayed + ' turn' + (d.displayed === 1 ? '' : 's') + ' in ' + d.contractGroups.length + ' contract' + (d.contractGroups.length === 1 ? '' : 's') + ' (of ' + d.total + ' in range)' + (d.dataSource ? ' — ' + d.dataSource : '') + (d.avgBusinessDays != null ? ' · sheet avg ' + d.avgBusinessDays + ' bd' : '') + '.')
+      : ('Rows ' + d.displayed + ' of ' + d.total + (d.dataSource ? ' (' + d.dataSource + ')' : '') + (d.avgBusinessDays != null ? ' · sheet avg ' + d.avgBusinessDays + ' bd' : '') + '.');
+    const groups = d.contractGroups && d.contractGroups.length ? d.contractGroups : null;
+    if (groups) {
+      const col = document.createElement('div');
+      col.className = 'col-headers';
+      col.innerHTML = '<span>Contract</span><span>Sent to Elaine</span><span>Elaine returned</span><span>Bus. days</span>';
+      list.appendChild(col);
+      const frag = document.createElement('div');
+      frag.innerHTML = groups.map(contractBlockHTML).join('');
+      while (frag.firstChild) list.appendChild(frag.firstChild);
+      list.querySelectorAll('.contract').forEach((el) => {
+        el.classList.add('open');
+        el.querySelector('.contract-row').addEventListener('click', () => el.classList.toggle('open'));
+      });
+      const completed = groups.flatMap((g) => [...g.turns].filter((t) => t.inDate).map(apiTurnToQueueTurn));
+      const a = fmtAvg(completed);
+      if (a != null) {
+        foot.innerHTML = '<span>Avg · ' + completed.length + ' turn' + (completed.length !== 1 ? 's' : '') + ' completed (imported)</span><span></span><span></span><div class="avg-days ' + a.cls + '">' + avgHTML(a) + '</div>';
+        foot.style.display = 'grid';
+      } else {
+        foot.innerHTML = '<span>—</span><span></span><span></span><span>—</span>';
+        foot.style.display = 'grid';
+      }
+      list.style.display = 'block';
+    } else {
+      const ev = d.events || [];
+      if (ev.length) {
+        list.innerHTML = '<p class="intro" style="margin-bottom:10px">Legacy list (redeploy for grouped view). Showing flat rows.</p><table class="legacy-tbl">' +
+          '<thead><tr><th>When</th><th>Contract</th><th>Source</th><th>Return</th><th>BD</th></tr></thead><tbody>' +
+          ev.map((e) => '<tr><td>' + esc(e.sentToElaine || '') + '</td><td>' + esc(e.contractName || '') + '</td><td>' + esc(e.source || '') + '</td><td>' + esc((e.returnedDate || '—') + (e.returnedTo ? ' → ' + e.returnedTo : '')) + '</td><td>' + (e.businessDays != null ? e.businessDays : '—') + '</td></tr>').join('') + '</tbody></table>';
+        list.style.display = 'block';
+      } else {
+        list.innerHTML = '<p class="intro">No imported events in range. Import above, or ensure KV / env is set for this deployment.</p>';
+        list.style.display = 'block';
+      }
+    }
+  } catch (e) {
+    pe.textContent = e.message;
+  }
+}
+document.getElementById('ref').onclick = loadTable;
+loadTable();
+</script>
+</body>
+</html>
