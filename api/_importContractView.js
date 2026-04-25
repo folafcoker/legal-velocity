@@ -2,7 +2,10 @@
  * Group import events by the same contract identity as the queue (normalized
  * name + document type), then build *turns* with correct semantics:
  *
- * A turn = contract sent **to** legal (out) → legal sends it **back** (in).
+ * A **turn (contract pair)** = two *sent for approval* lines for the same document, in time order:
+ *   (1) **out** = non-Elaine / non-Julie actor on the action line → sent **to** legal;
+ *   (2) **in** = Elaine or Julie on the action line → legal **returning** (sending for approval onward).
+ *   Pairing: FIFO — each *in* closes the oldest unclosed *out* for that contract.
  *
  * - TSV/JSON rows with both sent + return on one line → one complete turn.
  * - Juro Activity: every line is out **or** in; at pairing time we re-derive O/I from

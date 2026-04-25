@@ -1,15 +1,16 @@
 /**
- * Parse Juro "Activity" table paste: each turn is a triple (same for every "sent for approval" row):
- *   1) Action line: "{Name} sent for approval {Template name} with {contract filename}…"
- *   2) When:  "24 Apr 23:44" or "21 Nov 2025 14:11"
- *   3) Who took the action: that person’s work email
+ * Parse Juro "Activity" table paste: each row is a triple (every row is *sent for approval*):
+ *   1) Action: "{Name} sent for approval {Template} with {file}…"
+ *   2) When
+ *   3) Email of the person who took the action
  *
- * Juro only surfaces "sent for approval" in the UI. We infer workflow:
- *   - Commercial (name + email not legal) → to legal → **opens** a turn.
- *   - Elaine or Julie in the *action* (first name) → from legal → **closes** a turn.
- *
- * The third line is the actor, but in some exports a deal-legal or owner copy still appears there.
- * When the action line clearly names a *commercial* sender, that wins over a legal email on line 3.
+ * Foundational rule (contract pair = two Juro lines in time order, per document):
+ *   - **Out (to legal):** the name before *sent for approval* is **not** Elaine or Julie — someone
+ *     else is sending the document **to** legal for review.
+ *   - **In (return from legal):** the name before *sent for approval* **is** Elaine or Julie —
+ *     legal is **returning** the document by sending it for approval onward.
+ * Secondary heuristics (emails in the line, `sent for approval from elaine|julie`, line-3 email)
+ * apply only when the line does not parse as the usual `Name + sent for approval + template` shape.
  */
 
 const MONTHS = {
