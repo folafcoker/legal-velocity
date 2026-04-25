@@ -5,8 +5,9 @@
  * A turn = contract sent **to** legal (out) → legal sends it **back** (in).
  *
  * - TSV/JSON rows with both sent + return on one line → one complete turn.
- * - Juro Activity: only "sent for approval" exists. Non-legal actor → `to_legal` (opens);
- *   Elaine/Julie actor → `return_from_legal` (legal sends onward — closes turn, FIFO per contract).
+ * - Juro Activity: every line is out **or** in; at pairing time we re-derive O/I from
+ *   `isLegalCloserAction(actionLine, actorEmail)` so Redis `importRole` is not the only signal.
+ *   FIFO: each *in* closes the oldest *out* for that contract = one full turn.
  * - Events are sorted by each line’s Juro time (`atMs` / `sentAt`), never by `loggedAt` (import time),
  *   or FIFO would break in bulk pastes and every *out* would look like a separate unpaired turn.
  * - `importGroupKey` (stable file stem + doc type) keeps all Juro lines for the same file in one
@@ -15,9 +16,11 @@
  */
 const {
   importGroupKeyFromEvent,
+  firstName,
   normalizeName,
   normalizeCounterparty,
 } = require('./_juroImportShared.js');
+const { isLegalCloserAction } = require('./_juroActivityPaste.js');
 
 /**
  * Juro line time (atMs) or parseable activity timestamps must win over loggedAt, or a bulk
@@ -59,33 +62,183 @@ function groupKey(e) {
 /** Unmatched out rows older than this: do not show "with legal" hours to now in the UI. */
 const STALE_OPEN_MS = 7 * 24 * 60 * 60 * 1000;
 
+function isJuroActivityEvent(e) {
+  if (!e || !e.actionLine) return false;
+  if (e.source === 'juro-activity') return true;
+  return e.activityEvent === true;
+}
+
+/**
+ * One Juro "sent for approval" line = either the **out** to legal (commercial) or the **in**
+ * from legal (Elaine/Julie), regardless of what was written at import (Redis rows can be wrong
+ * for old pastes). Pairing is strictly FIFO: each **in** closes the oldest unclosed **out**.
+ * @returns {{side:'out',outDate:string,outAt:string,sentBy:string,event:object, t:number}|
+ *  {side:'in',inDate:string,inAt:string,returnedTo:(string|null),event:object, t:number}|
+ *  null}
+ */
+function juroToPairingSide(e) {
+  if (!e || !e.actionLine) return null;
+  const t = sortTimeFine(e);
+  const legal = isLegalCloserAction(e.actionLine, e.actorEmail);
+  if (legal) {
+    if (e.sentToElaine && (e.sentAt && e.sentAt !== '—')) {
+      // Mis-stored as to_legal: the timestamps are the legal *return* (in).
+      return {
+        side: 'in',
+        t,
+        inDate: e.sentToElaine,
+        inAt: e.sentAt,
+        returnedTo: e.returnedTo != null && e.returnedTo !== '' ? e.returnedTo : null,
+        event: e,
+      };
+    }
+    if (e.returnedDate) {
+      return {
+        side: 'in',
+        t,
+        inDate: e.returnedDate,
+        inAt: e.returnedAt || null,
+        returnedTo: e.returnedTo != null && e.returnedTo !== '' ? e.returnedTo : null,
+        event: e,
+      };
+    }
+    return null;
+  }
+  if (e.returnedDate && !e.sentToElaine) {
+    // Mis-stored as return: commercial to legal is actually the **out**.
+    return {
+      side: 'out',
+      t,
+      outDate: e.returnedDate,
+      outAt: e.returnedAt && e.returnedAt !== '—' ? e.returnedAt : '—',
+      sentBy: e.sentBy || firstName('', e.actorEmail) || (e.actorEmail && String(e.actorEmail).split('@')[0]) || '—',
+      event: e,
+    };
+  }
+  if (e.sentToElaine) {
+    return {
+      side: 'out',
+      t,
+      outDate: e.sentToElaine,
+      outAt: e.sentAt && e.sentAt !== '—' ? e.sentAt : '—',
+      sentBy: e.sentBy || firstName('', e.actorEmail) || (e.actorEmail && String(e.actorEmail).split('@')[0]) || '—',
+      event: e,
+    };
+  }
+  return null;
+}
+
+/**
+ * TSV/JSON/legacy, or a Juro row that could not be split into out|in (falls through).
+ * @returns {{t:number,kind:'complete',e:object} | {t:number,kind:'out',out:object} | {t:number,kind:'in',inn:object} | null}
+ */
+function toStreamEvent(e) {
+  if (isJuroActivityEvent(e)) {
+    const s = juroToPairingSide(e);
+    if (s) {
+      if (s.side === 'out') {
+        return {
+          t: s.t,
+          kind: 'out',
+          out: {
+            outDate: s.outDate,
+            outAt: s.outAt,
+            sentBy: s.sentBy,
+            event: s.event,
+          },
+        };
+      }
+      return {
+        t: s.t,
+        kind: 'in',
+        inn: {
+          inDate: s.inDate,
+          inAt: s.inAt,
+          returnedTo: s.returnedTo,
+          event: s.event,
+        },
+      };
+    }
+  }
+  const isReturn = e.importRole === 'return_from_legal';
+  const hasOut = Boolean(e.sentToElaine);
+  const hasInOnRow = Boolean(e.returnedDate);
+  const completeOnOneRow = hasOut && hasInOnRow && !isReturn;
+  if (completeOnOneRow) {
+    return { t: sortTimeFine(e), kind: 'complete', e };
+  }
+  if (isReturn) {
+    return {
+      t: sortTimeFine(e),
+      kind: 'in',
+      inn: {
+        inDate: e.returnedDate,
+        inAt: e.returnedAt,
+        returnedTo: e.returnedTo,
+        event: e,
+      },
+    };
+  }
+  if (hasOut && !hasInOnRow) {
+    return {
+      t: sortTimeFine(e),
+      kind: 'out',
+      out: {
+        outDate: e.sentToElaine,
+        outAt: e.sentAt,
+        sentBy: e.sentBy,
+        event: e,
+      },
+    };
+  }
+  return null;
+}
+
+function mergePairedOutIn(o, inn, businessDaysCalc) {
+  const bd =
+    businessDaysCalc && o.outDate && inn.inDate
+      ? businessDaysCalc(o.outDate, inn.inDate)
+      : null;
+  return {
+    source: [o.event.source, inn.event.source].filter(Boolean).join(' + ') || '—',
+    outDate: o.outDate || null,
+    inDate: inn.inDate || null,
+    outAt: o.outAt || '—',
+    inAt: inn.inAt || null,
+    sentBy: o.sentBy || '—',
+    returnedTo: inn.returnedTo != null && inn.returnedTo !== '' ? inn.returnedTo : null,
+    businessDays: bd,
+    kind: 'complete',
+    contractId: o.event.contractId,
+    stale: false,
+  };
+}
+
 /**
  * @param {Array<object>} items - events for one contract, in any order
  * @param {(a: string, b: string) => number | null} [businessDaysCalc]
  */
 function buildTurnsForGroup(items, businessDaysCalc) {
   if (!items || !items.length) return [];
-  const sorted = items.map((e, i) => ({ e, i })).sort((a, b) => {
-    const ta = sortTimeFine(a.e);
-    const tb = sortTimeFine(b.e);
-    if (ta !== tb) return ta - tb;
-    // Same instant: process commercial "to legal" before legal "from legal" so FIFO pairs correctly.
-    const ra = a.e.importRole === 'return_from_legal' ? 1 : 0;
-    const rb = b.e.importRole === 'return_from_legal' ? 1 : 0;
+  const stream = items
+    .map((e, i) => ({ s: toStreamEvent(e), i, e }))
+    .filter((x) => x.s != null)
+    .map((x) => ({ ...x.s, i: x.i }));
+
+  const sorted = stream.sort((a, b) => {
+    if (a.t !== b.t) return a.t - b.t;
+    const ra = a.kind === 'in' ? 1 : 0;
+    const rb = b.kind === 'in' ? 1 : 0;
     if (ra !== rb) return ra - rb;
     return a.i - b.i;
-  }).map((x) => x.e);
+  });
 
   const pending = [];
   const turns = [];
 
-  for (const e of sorted) {
-    const isReturn = e.importRole === 'return_from_legal';
-    const hasOut = Boolean(e.sentToElaine);
-    const hasInOnRow = Boolean(e.returnedDate);
-    const completeOnOneRow = hasOut && hasInOnRow && !isReturn;
-
-    if (completeOnOneRow) {
+  for (const step of sorted) {
+    if (step.kind === 'complete') {
+      const e = step.e;
       turns.push({
         source: e.source || '—',
         outDate: e.sentToElaine || null,
@@ -106,51 +259,31 @@ function buildTurnsForGroup(items, businessDaysCalc) {
       });
       continue;
     }
-
-    if (isReturn) {
-      const outEv = pending.shift();
-      if (!outEv) continue;
-      const inDate = e.returnedDate;
-      const bd =
-        businessDaysCalc && outEv.sentToElaine && inDate
-          ? businessDaysCalc(outEv.sentToElaine, inDate)
-          : null;
-      turns.push({
-        source: [outEv.source, e.source].filter(Boolean).join(' + ') || '—',
-        outDate: outEv.sentToElaine || null,
-        inDate: inDate || null,
-        outAt: outEv.sentAt || '—',
-        inAt: e.returnedAt || null,
-        sentBy: outEv.sentBy || '—',
-        returnedTo: e.returnedTo != null && e.returnedTo !== '' ? e.returnedTo : null,
-        businessDays: bd,
-        kind: 'complete',
-        contractId: outEv.contractId,
-        stale: false,
-      });
+    if (step.kind === 'out') {
+      pending.push(step.out);
       continue;
     }
-
-    if (hasOut && !hasInOnRow) {
-      pending.push(e);
-      continue;
+    if (step.kind === 'in') {
+      const o = pending.shift();
+      if (!o) continue;
+      turns.push(mergePairedOutIn(o, step.inn, businessDaysCalc));
     }
   }
 
-  for (const outEv of pending) {
-    const t0 = sortTimeFine(outEv);
+  for (const o of pending) {
+    const t0 = sortTimeFine(o.event);
     const stale = t0 < Date.now() - STALE_OPEN_MS;
     turns.push({
-      source: outEv.source || '—',
-      outDate: outEv.sentToElaine || null,
+      source: o.event.source || '—',
+      outDate: o.outDate || null,
       inDate: null,
-      outAt: outEv.sentAt || '—',
+      outAt: o.outAt || '—',
       inAt: null,
-      sentBy: outEv.sentBy || '—',
+      sentBy: o.sentBy || '—',
       returnedTo: null,
       businessDays: null,
-      kind: (outEv.activityEvent || outEv.source === 'juro-activity') ? 'activity' : 'open',
-      contractId: outEv.contractId,
+      kind: (o.event.activityEvent || o.event.source === 'juro-activity') ? 'activity' : 'open',
+      contractId: o.event.contractId,
       stale,
     });
   }
