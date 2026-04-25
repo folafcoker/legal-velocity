@@ -9,6 +9,9 @@ const kv = new Redis({
 });
 
 const { buildImportContractGroups } = require('./_importContractView.js');
+const { addTurnIds, applyTurnMerges } = require('./_importTurnMerge.js');
+
+const MERGE_KEY = 'import:turn_merges';
 
 const US_HOLIDAYS_2026 = new Set([
   '2026-01-01', '2026-01-19', '2026-02-16', '2026-05-25',
@@ -66,7 +69,26 @@ module.exports = async function handler(req, res) {
     .reverse();
 
   const events = allEvents.slice(0, limitQ);
-  const contractGroups = buildImportContractGroups(events, businessDaysBetween);
+  const mergeRecords = await (async () => {
+    try {
+      const raw = await kv.get(MERGE_KEY);
+      if (raw == null) return [];
+      const a = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return Array.isArray(a) ? a : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  const contractGroups = buildImportContractGroups(events, businessDaysBetween).map((g) => ({
+    ...g,
+    turns: applyTurnMerges(
+      addTurnIds(g.turns, g.key),
+      g.key,
+      mergeRecords,
+      businessDaysBetween,
+    ),
+  }));
   const closed = allEvents.filter((e) => e.returnedDate);
   const open = allEvents.filter((e) => !e.returnedDate && !e.activityEvent);
   const durations = closed.map((e) => e.businessDays).filter((n) => n !== null);

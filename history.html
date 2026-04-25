@@ -53,18 +53,33 @@ code { font-family: var(--mono); font-size: 11px; background: #f4f4f4; padding: 
 /* — Queue-matched list — */
 .col-headers {
   display: grid;
-  grid-template-columns: 1fr 130px 130px 80px;
+  grid-template-columns: 28px 1fr 130px 130px 80px;
   padding: 0 0 10px;
   border-bottom: 1px solid var(--line);
   font-size: 11px; font-weight: 500; color: var(--txt-3);
   letter-spacing: 0.2px;
 }
 .col-headers span:not(:first-child) { text-align: right; }
+.col-headers span:nth-child(2) { text-align: left; }
+.merge-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin: 0 0 10px; font-size: 12px; color: var(--txt-2);
+}
+.man-tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--txt-2); background: #f0f0f0; border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+}
+button.unmerge {
+  font-size: 10px; padding: 2px 8px; background: #fff; color: var(--txt-2);
+  border: 1px solid var(--line); font-weight: 500; border-radius: 4px; cursor: pointer; margin-left: 6px; vertical-align: middle;
+}
+button.unmerge:hover { color: var(--txt); }
+.turn-pick { width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: #111; }
 .contract { border-bottom: 1px solid var(--line); }
 .contract:last-child { border-bottom: none; }
 .contract-row {
   display: grid;
-  grid-template-columns: 1fr 130px 130px 80px;
+  grid-template-columns: 28px 1fr 130px 130px 80px;
   align-items: center;
   padding: 13px 0;
   cursor: pointer;
@@ -96,10 +111,12 @@ code { font-family: var(--mono); font-size: 11px; background: #f4f4f4; padding: 
 .turn-row:last-child { border-bottom: none; }
 .turn-main {
   display: grid;
-  grid-template-columns: 1fr 130px 130px 80px;
+  grid-template-columns: 28px 1fr 130px 130px 80px;
   align-items: center;
-  padding: 10px 0 10px 22px;
+  padding: 10px 0 10px 0;
 }
+.turn-pick-spacer { width: 28px; }
+.turn-main .turn-people { padding-left: 0; }
 .turn-label {
   font-size: 11px; font-weight: 500; color: var(--txt-3);
   text-transform: uppercase; letter-spacing: 0.3px;
@@ -124,7 +141,7 @@ code { font-family: var(--mono); font-size: 11px; background: #f4f4f4; padding: 
 .dash { font-family: var(--mono); font-size: 14px; color: var(--txt-3); text-align: right; display: block; }
 #import-footer {
   display: grid;
-  grid-template-columns: 1fr 130px 130px 80px;
+  grid-template-columns: 28px 1fr 130px 130px 80px;
   padding: 12px 0 0;
   margin-top: 4px;
   border-top: 1px solid var(--line);
@@ -164,13 +181,18 @@ Acme MNDA	2026-01-10	2026-01-12	Camilla'></textarea>
     <button type="button" id="go">Import</button>
     <button type="button" id="ref" class="sec">Reload history list</button>
   </div>
+  <p class="hint" style="margin-top:0">Merging requires the same <code>LEGAL_PASTE_TOKEN</code> as import when that env is set.</p>
   <p class="hint">If <code>LEGAL_PASTE_TOKEN</code> is not set in Vercel, imports work without a token. With it, pass the same value as a Bearer token or the field above.</p>
   <div id="msg"></div>
 
   <h2>Imported history</h2>
-  <p class="intro">Same layout as <a href="/queue">Queue</a>: one <strong>turn</strong> = a commercial <em>out to legal</em> paired in order with the next <em>from legal</em> line (Elaine/Julie) for the <strong>same</strong> document. Pairing uses each line&rsquo;s <strong>Juro timestamp</strong>, not when you pasted. <strong>Re-import</strong> after logic changes. TSV/JSON with both dates on one row still work. Data is only what you import here.</p>
+  <p class="intro">Same layout as <a href="/queue">Queue</a>: one <strong>turn</strong> = a commercial <em>out to legal</em> paired in order with the next <em>from legal</em> line (Elaine/Julie) for the <strong>same</strong> document. If the list splits a round trip wrong, select <strong>two</strong> turn rows in the same contract and click <strong>Merge into one turn</strong> (saved in KV). <strong>Undo</strong> on a row marked manual. TSV/JSON and re-import still apply as before.</p>
   <div id="preview-wrap">
     <p id="pe"></p>
+    <div class="merge-bar" id="merge-bar" style="display:none">
+      <button type="button" id="merge-picks" disabled>Merge into one turn</button>
+      <span id="merge-hint" class="hint" style="margin:0">Select two rows in one contract (checkboxes), then merge.</span>
+    </div>
     <div id="contract-list" style="display:none"></div>
     <div id="import-footer" style="display:none"></div>
   </div>
@@ -328,7 +350,21 @@ function displayReturn(turn) {
   if (!turn.returnedDate) return null;
   return turn.returnedAt || fmtDate(turn.returnedDate);
 }
-function turnRowHTML(turn, turnIdx) {
+function turnRowHTML(raw, turnIdx, gKey) {
+  const turn = Object.assign({}, apiTurnToQueueTurn(raw));
+  if (raw.turnId) turn.turnId = raw.turnId;
+  if (raw.manualMerge) turn.manualMerge = true;
+  if (raw.mergeId) turn.mergeId = raw.mergeId;
+  const manual = raw.manualMerge === true;
+  const canPick = !manual && (raw.turnId);
+  const cb = canPick
+    ? ('<input type="checkbox" class="turn-pick" data-gk="' + esc(gKey) + '" data-tid="' + esc(String(raw.turnId)) + '" title="Select to merge" />')
+    : '<div class="turn-pick-spacer" aria-hidden="true"></div>';
+  const manHTML = manual
+    ? ('<span class="man-tag">Manual</span>' + (raw.mergeId
+      ? '<button type="button" class="unmerge" data-mid="' + esc(String(raw.mergeId)) + '">Undo merge</button>'
+      : ''))
+    : '';
   const sentBy = turn.sentBy || '';
   const returnedTo = turn.returnedTo || '';
   const peopleHTML = '<div class="turn-people">' +
@@ -341,7 +377,6 @@ function turnRowHTML(turn, turnIdx) {
   const returnedAt = displayReturn(turn);
   const dur = durationFor(turn);
   const rawOpenH = !turn.returnedDate && !turn.stale ? openPendingBusinessHours(turn) : null;
-  // If there is no in-date and hours with legal exceed one week, treat like stale (import snapshot, not live queue).
   const longOpen = rawOpenH != null && rawOpenH > 168;
   const openH = longOpen ? null : rawOpenH;
   const staleUi = turn.stale || longOpen;
@@ -360,20 +395,21 @@ function turnRowHTML(turn, turnIdx) {
     daysCell = '<span class="dash">—</span>';
   }
   return '<div class="turn-row">' +
-    '<div class="turn-main">' +
-    '<div><div class="turn-label">Turn ' + (turnIdx + 1) + '</div>' + peopleHTML + '</div>' +
+    '<div class="turn-main">' + cb + '<div><div class="turn-label">Turn ' + (turnIdx + 1) + manHTML + '</div>' + peopleHTML + '</div>' +
     '<span class="ts-val">' + esc(sentAt) + '</span>' +
     '<span class="' + (returnedAt ? 'ts-val' : 'pending-dash') + '">' + inCell + '</span>' +
     daysCell +
     '</div></div>';
 }
 function contractBlockHTML(g) {
-  const turns = [...g.turns].reverse().map(apiTurnToQueueTurn);
+  const gKey = g.key || '';
+  const raws = [...g.turns].reverse();
+  const turns = raws.map(apiTurnToQueueTurn);
   const a = contractAvg(turns);
   const totalTurns = turns.length;
-  const turnsHTML = turns.map((t, ti) => turnRowHTML(t, ti)).join('');
-  return '<div class="contract">' +
-    '<div class="contract-row">' +
+  const turnsHTML = raws.map((raw, ti) => turnRowHTML(raw, ti, gKey)).join('');
+  return '<div class="contract" data-gk="' + esc(gKey) + '">' +
+    '<div class="contract-row">' + '<div></div>' +
     '<div class="ct-name-wrap">' +
     '<svg class="chevron" viewBox="0 0 14 14" fill="none"><path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
     '<div><div class="ct-name">' + esc(g.name) + '</div><div class="ct-party">' + esc(g.counterparty) + '</div></div></div>' +
@@ -383,6 +419,75 @@ function contractBlockHTML(g) {
 }
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+function getMergeHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  const token = (document.getElementById('tok') && document.getElementById('tok').value.trim()) || localStorage.getItem(T) || '';
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function updateMergeBtn() {
+  const btn = document.getElementById('merge-picks');
+  if (!btn) return;
+  const cbs = document.querySelectorAll('.turn-pick:checked');
+  if (cbs.length !== 2) { btn.disabled = true; return; }
+  const a = cbs[0].getAttribute('data-gk');
+  const b = cbs[1].getAttribute('data-gk');
+  btn.disabled = !(a && a === b);
+}
+async function onMergePicks() {
+  const cbs = [...document.querySelectorAll('.turn-pick:checked')];
+  if (cbs.length !== 2) return;
+  if (cbs[0].getAttribute('data-gk') !== cbs[1].getAttribute('data-gk')) return;
+  const gk = cbs[0].getAttribute('data-gk');
+  const tA = cbs[0].getAttribute('data-tid');
+  const tB = cbs[1].getAttribute('data-tid');
+  const groups = window.__importContractGroups;
+  if (!groups || !groups.length) { window.alert('Reload the list first.'); return; }
+  const g = groups.find((x) => (x.key || '') === (gk || ''));
+  if (!g || !g.turns) { window.alert('Contract not found. Reload the page.'); return; }
+  const turn1 = g.turns.find((t) => t.turnId === tA);
+  const turn2 = g.turns.find((t) => t.turnId === tB);
+  if (!turn1 || !turn2) { window.alert('Row data is stale. Reload the list, then try again.'); return; }
+  if (turn1.manualMerge || turn2.manualMerge) { window.alert('Unmerge a manual turn first, or pick other rows.'); return; }
+  try {
+    const r = await fetch('/api/import-turn-merge', {
+      method: 'POST',
+      headers: getMergeHeaders(),
+      body: JSON.stringify({ groupKey: gk, turn1, turn2 }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error((j && j.error) || r.status);
+    await loadTable();
+  } catch (e) {
+    window.alert((e && e.message) || e);
+    try { await loadTable(); } catch (_) { /* */ }
+  }
+  updateMergeBtn();
+}
+function onUnmergeClick(e) {
+  if (!e.target || !e.target.classList || !e.target.classList.contains('unmerge')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const id = e.target.getAttribute('data-mid');
+  if (!id) return;
+  (async function () {
+    if (!window.confirm('Undo this manual merge?')) return;
+    try {
+      const r = await fetch('/api/import-turn-merge', { method: 'DELETE', headers: getMergeHeaders(), body: JSON.stringify({ id }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error((j && j.error) || r.status);
+      await loadTable();
+    } catch (err) { window.alert((err && err.message) || err); try { await loadTable(); } catch (_) { /* */ } }
+  })();
+}
+(function bindHistoryMerge() {
+  const w = document.getElementById('preview-wrap');
+  if (!w) return;
+  w.addEventListener('change', (e) => { if (e.target && e.target.classList && e.target.classList.contains('turn-pick')) updateMergeBtn(); });
+  w.addEventListener('click', onUnmergeClick);
+  const mbtn = document.getElementById('merge-picks');
+  if (mbtn) mbtn.addEventListener('click', onMergePicks);
+})();
 async function loadTable() {
   const pe = document.getElementById('pe');
   const list = document.getElementById('contract-list');
@@ -395,6 +500,7 @@ async function loadTable() {
     const r = await fetch('/api/import-history?limit=200');
     if (!r.ok) throw new Error('API ' + r.status);
     const d = await r.json();
+    window.__importContractGroups = d.contractGroups && d.contractGroups.length ? d.contractGroups : null;
     pe.textContent = d.contractGroups && d.contractGroups.length
       ? (d.displayed + ' turn' + (d.displayed === 1 ? '' : 's') + ' in ' + d.contractGroups.length + ' contract' + (d.contractGroups.length === 1 ? '' : 's') + ' (of ' + d.total + ' in range)' + (d.dataSource ? ' — ' + d.dataSource : '') + (d.avgBusinessDays != null ? ' · sheet avg ' + d.avgBusinessDays + ' bd' : '') + '.')
       : ('Rows ' + d.displayed + ' of ' + d.total + (d.dataSource ? ' (' + d.dataSource + ')' : '') + (d.avgBusinessDays != null ? ' · sheet avg ' + d.avgBusinessDays + ' bd' : '') + '.');
@@ -402,7 +508,7 @@ async function loadTable() {
     if (groups) {
       const col = document.createElement('div');
       col.className = 'col-headers';
-      col.innerHTML = '<span>Contract</span><span>Sent to Elaine</span><span>Elaine returned</span><span>Bus. days</span>';
+      col.innerHTML = '<span></span><span>Contract</span><span>Sent to Elaine</span><span>Elaine returned</span><span>Bus. days</span>';
       list.appendChild(col);
       const frag = document.createElement('div');
       frag.innerHTML = groups.map(contractBlockHTML).join('');
@@ -414,14 +520,18 @@ async function loadTable() {
       const completed = groups.flatMap((g) => [...g.turns].filter((t) => t.inDate).map(apiTurnToQueueTurn));
       const a = fmtAvg(completed);
       if (a != null) {
-        foot.innerHTML = '<span>Avg · ' + completed.length + ' turn' + (completed.length !== 1 ? 's' : '') + ' completed (imported)</span><span></span><span></span><div class="avg-days ' + a.cls + '">' + avgHTML(a) + '</div>';
+        foot.innerHTML = '<span></span><span>Avg · ' + completed.length + ' turn' + (completed.length !== 1 ? 's' : '') + ' completed (imported)</span><span></span><span></span><div class="avg-days ' + a.cls + '">' + avgHTML(a) + '</div>';
         foot.style.display = 'grid';
       } else {
-        foot.innerHTML = '<span>—</span><span></span><span></span><span>—</span>';
+        foot.innerHTML = '<span></span><span>—</span><span></span><span></span><span>—</span>';
         foot.style.display = 'grid';
       }
+      const mb = document.getElementById('merge-bar');
+      if (mb) { mb.style.display = 'flex'; }
       list.style.display = 'block';
     } else {
+      const mb = document.getElementById('merge-bar');
+      if (mb) { mb.style.display = 'none'; }
       const ev = d.events || [];
       if (ev.length) {
         list.innerHTML = '<p class="intro" style="margin-bottom:10px">Legacy list (redeploy for grouped view). Showing flat rows.</p><table class="legacy-tbl">' +
@@ -435,6 +545,7 @@ async function loadTable() {
     }
   } catch (e) {
     pe.textContent = e.message;
+    window.__importContractGroups = null;
   }
 }
 document.getElementById('ref').onclick = loadTable;
