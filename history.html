@@ -168,7 +168,7 @@ Acme MNDA	2026-01-10	2026-01-12	Camilla'></textarea>
   <div id="msg"></div>
 
   <h2>Imported history</h2>
-  <p class="intro">Same layout as <a href="/queue">Queue</a>: contract blocks, TURN rows, and business hours / SLA colours. <strong>Juro</strong> only has <em>sent for approval</em>: a turn <strong>opens</strong> when a commercial name appears in the action line, and <strong>closes</strong> when the name before <q>sent for approval</q> is <strong>Elaine</strong> or <strong>Julie</strong> (we use that, not the third line alone—some pastes still put a team inbox on line 3 for commercial actions). <strong>Re-import</strong> after logic changes so stored rows re-classify. TSV/JSON with explicit sent + return still work. Data is only what you import here.</p>
+  <p class="intro">Same layout as <a href="/queue">Queue</a>: one <strong>turn</strong> = a commercial <em>out to legal</em> paired in order with the next <em>from legal</em> line (Elaine/Julie) for the <strong>same</strong> document. Pairing uses each line&rsquo;s <strong>Juro timestamp</strong>, not when you pasted. <strong>Re-import</strong> after logic changes. TSV/JSON with both dates on one row still work. Data is only what you import here.</p>
   <div id="preview-wrap">
     <p id="pe"></p>
     <div id="contract-list" style="display:none"></div>

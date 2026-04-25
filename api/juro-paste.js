@@ -3,6 +3,7 @@ const {
   firstName,
   normalizeName,
   normalizeCounterparty,
+  stableImportGroupKey,
   slugify,
   toDateStr,
   formatTs,
@@ -200,6 +201,7 @@ async function writeActivityEvents(parsed, dryRun) {
     const counterparty = normalizeCounterparty(
       [templateLabel, documentTitle].filter(Boolean).join(' '),
     );
+    const importGroupKey = stableImportGroupKey(String(documentTitle || ''), String(templateLabel || ''));
     const id = `juro-act-${slugify((documentTitle || name).slice(0, 80))}`.replace(/-+$/, '');
     const iso = new Date(atMs).toISOString();
 
@@ -225,6 +227,9 @@ async function writeActivityEvents(parsed, dryRun) {
         contractId: id,
         contractName: name,
         counterparty,
+        importGroupKey,
+        documentTitleRaw: String(documentTitle || '').slice(0, 2000),
+        atMs,
         sentBy: null,
         sentToElaine: null,
         sentAt: null,
@@ -267,6 +272,9 @@ async function writeActivityEvents(parsed, dryRun) {
       contractId: id,
       contractName: name,
       counterparty,
+      importGroupKey,
+      documentTitleRaw: String(documentTitle || '').slice(0, 2000),
+      atMs,
       sentBy: firstName('', actorEmail) || actorEmail.split('@')[0],
       sentToElaine,
       sentAt: formatTs(iso),

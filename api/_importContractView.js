@@ -7,13 +7,26 @@
  * - TSV/JSON rows with both sent + return on one line → one complete turn.
  * - Juro Activity: only "sent for approval" exists. Non-legal actor → `to_legal` (opens);
  *   Elaine/Julie actor → `return_from_legal` (legal sends onward — closes turn, FIFO per contract).
- * - Unmatched out rows (no return in the import) stay open; old ones are `stale`
- *   so the UI does not count hours to "now" forever.
+ * - Events are sorted by each line’s Juro time (`atMs` / `sentAt`), never by `loggedAt` (import time),
+ *   or FIFO would break in bulk pastes and every *out* would look like a separate unpaired turn.
+ * - `importGroupKey` (stable file stem + doc type) keeps all Juro lines for the same file in one
+ *   contract block; plain `normalizeName` alone can split the same file across groups.
+ * - Unmatched out rows (no return in the import) stay open; old ones are `stale` for display.
  */
-const { normalizeName, normalizeCounterparty, toDateStr, formatTs } = require('./_juroImportShared.js');
+const {
+  importGroupKeyFromEvent,
+  normalizeName,
+  normalizeCounterparty,
+} = require('./_juroImportShared.js');
 
-/** @param {object} e */
+/**
+ * Juro line time (atMs) or parseable activity timestamps must win over loggedAt, or a bulk
+ * import puts every row at the same “imported now” time and turns process newest-first — FIFO
+ * never pairs (returns drop, every out looks like its own open turn).
+ */
 function sortTimeFine(e) {
+  if (Number.isFinite(e.atMs) && e.atMs > 0) return e.atMs;
+
   if (e.importRole === 'return_from_legal') {
     if (e.returnedAt && e.returnedAt !== '—') {
       const d = new Date(e.returnedAt + ' 2026');
@@ -24,10 +37,6 @@ function sortTimeFine(e) {
       if (!isNaN(t)) return t;
     }
   }
-  if (e.loggedAt) {
-    const t = new Date(e.loggedAt).getTime();
-    if (!isNaN(t)) return t;
-  }
   if (e.sentAt && e.sentAt !== '—') {
     const d = new Date(e.sentAt + ' 2026');
     if (!isNaN(d.getTime())) return d.getTime();
@@ -36,13 +45,15 @@ function sortTimeFine(e) {
     const t = new Date(e.sentToElaine + 'T12:00:00Z').getTime();
     if (!isNaN(t)) return t;
   }
+  if (e.loggedAt) {
+    const t = new Date(e.loggedAt).getTime();
+    if (!isNaN(t)) return t;
+  }
   return 0;
 }
 
 function groupKey(e) {
-  const name = normalizeName(e.contractName || '') || (e.contractName || 'Unknown').trim();
-  const party = normalizeCounterparty(e.counterparty || e.contractName || '');
-  return `${name.toLowerCase()}||${String(party).toLowerCase()}`;
+  return importGroupKeyFromEvent(e);
 }
 
 /** Unmatched out rows older than this: do not show "with legal" hours to now in the UI. */

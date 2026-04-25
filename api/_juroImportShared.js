@@ -95,10 +95,50 @@ function toIsoFromCell(val) {
   return d && !isNaN(d) ? d.toISOString() : null;
 }
 
+const { splitActionLine } = require('./_juroActivityPaste.js');
+
+/**
+ * One stable key per logical document: stem of filename (strip version markers) + document
+ * *type* bucket, so all Juro lines for the same contract file group (filenames can vary
+ * with “ (1) (2) ”, etc. between activity rows).
+ */
+function stableImportGroupKey(documentTitle, templateLabel) {
+  const type = normalizeCounterparty(
+    [String(templateLabel || ''), String(documentTitle || '')].filter(Boolean).join(' '),
+  );
+  let stem = String(documentTitle || '')
+    .replace(/\.(docx?|pdf)\s*$/i, '')
+    .toLowerCase();
+  stem = stem.replace(/\s*\(copy\)\s*$/i, '');
+  stem = stem.replace(/(?:\s*\(\d+\))+\s*$/g, '');
+  stem = stem
+    .replace(/\b\d{1,2}-\d{1,2}-\d{4}_/gi, '')
+    .replace(/\b\d{4}[_-]\d{1,2}[_-]\d{1,2}[_-]?/g, '');
+  stem = stem.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!stem) stem = 'document';
+  return `${stem.slice(0, 160)}||${type}`.toLowerCase();
+}
+
+/** @param {object} e - import event (optional importGroupKey / documentTitleRaw on new rows) */
+function importGroupKeyFromEvent(e) {
+  if (e.importGroupKey) return e.importGroupKey;
+  let doc = '';
+  if (e.documentTitleRaw && String(e.documentTitleRaw).trim()) {
+    doc = String(e.documentTitleRaw);
+  } else if (e.actionLine) {
+    const s = splitActionLine(String(e.actionLine));
+    if (s.documentTitle && s.documentTitle !== e.actionLine) doc = s.documentTitle;
+  }
+  if (!doc) doc = e.contractName || '';
+  return stableImportGroupKey(doc, e.templateLabel);
+}
+
 module.exports = {
   firstName,
   normalizeName,
   normalizeCounterparty,
+  stableImportGroupKey,
+  importGroupKeyFromEvent,
   slugify,
   toDateStr,
   formatTs,
