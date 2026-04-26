@@ -6,10 +6,10 @@ Live ingestion paths and Redis keys are documented in **`README.md`**. As of 202
 
 Each **contract** has one or more **turns**.
 
-A turn = one loop through Elaine:
-- **Clock starts** → `contract.approval_requested` sent to `elaine@granola.so`
+A turn = one loop through legal (Elaine + Julie):
+- **Clock starts** → `contract.approval_requested` sent to `elaine@granola.so` or `julie@granola.so` from outside legal
 - **Clock stops** → whichever fires first:
-  - `contract.approval_requested` sent to anyone *other than* Elaine (she approved, next person notified)
+  - `contract.approval_requested` sent to anyone outside legal (handoff from legal to another approver)
   - `contract.approval_process_finished` (all approvers done)
 - **Still open** → neither event has fired yet — shown as `—`, no day count
 
@@ -40,8 +40,8 @@ const CONTRACTS = [
 
 | Juro Event                       | Field            | Condition                                  |
 |----------------------------------|------------------|--------------------------------------------|
-| `contract.approval_requested`    | `sentToElaine`   | recipient = `elaine@granola.so`            |
-| `contract.approval_requested`    | `returnedDate`   | recipient ≠ `elaine@granola.so`, after sentToElaine |
+| `contract.approval_requested`    | `sentToElaine`   | recipient in legal team (`elaine@granola.so` / `julie@granola.so`) |
+| `contract.approval_requested`    | `returnedDate`   | recipient outside legal team, after sentToElaine |
 | `contract.approval_process_finished` | `returnedDate` | fires after sentToElaine, no subsequent approval_requested yet |
 
 ---
@@ -57,4 +57,11 @@ const CONTRACTS = [
 
 ## Multi-turn contracts
 
-A contract gets a new turn entry each time it re-enters Elaine's queue after having previously left it. The contract row shows the **avg days across completed turns**. Expanding shows each turn individually.
+A contract gets a new turn entry each time it re-enters legal after previously leaving legal. The contract row shows the **avg days across completed turns**. Expanding shows each turn individually.
+
+---
+
+## Wrap-up note (26 Apr 2026)
+
+- Dashboard KPI cards now count unique **contracts (contract ID)** for out/back/open metrics.
+- Open queue rows are deduped to one active row per contract ID.

@@ -62,8 +62,8 @@ function groupKey(e) {
   return importGroupKeyFromEvent(e);
 }
 
-/** Unmatched out rows older than this: do not show "with legal" hours to now in the UI. */
-const STALE_OPEN_MS = 7 * 24 * 60 * 60 * 1000;
+/** Unmatched out rows older than this: mark stale (import is not a live clock). */
+const STALE_OPEN_MS = 3 * 24 * 60 * 60 * 1000;
 
 function isJuroActivityEvent(e) {
   if (!e || !e.actionLine) return false;
@@ -202,12 +202,18 @@ function mergePairedOutIn(o, inn, businessDaysCalc) {
     businessDaysCalc && o.outDate && inn.inDate
       ? businessDaysCalc(o.outDate, inn.inDate)
       : null;
+  const outE = o && o.event;
+  const inE = inn && inn.event;
+  const outAtMs = outE ? sortTimeFine(outE) : null;
+  const inAtMs = inE ? sortTimeFine(inE) : null;
   return {
     source: [o.event.source, inn.event.source].filter(Boolean).join(' + ') || '—',
     outDate: o.outDate || null,
     inDate: inn.inDate || null,
     outAt: o.outAt || '—',
     inAt: inn.inAt || null,
+    outAtMs: Number.isFinite(outAtMs) && outAtMs > 0 ? outAtMs : null,
+    inAtMs: Number.isFinite(inAtMs) && inAtMs > 0 ? inAtMs : null,
     sentBy: o.sentBy || '—',
     returnedTo: inn.returnedTo != null && inn.returnedTo !== '' ? inn.returnedTo : null,
     businessDays: bd,
@@ -282,6 +288,7 @@ function buildTurnsForGroup(items, businessDaysCalc) {
       inDate: null,
       outAt: o.outAt || '—',
       inAt: null,
+      outAtMs: Number.isFinite(t0) && t0 > 0 ? t0 : null,
       sentBy: o.sentBy || '—',
       returnedTo: null,
       businessDays: null,

@@ -1,6 +1,8 @@
 const { Redis } = require('@upstash/redis');
 const { groupLiveEvents } = require('./_liveGroup.js');
 const { pairFeedTurns, pairToLiveRow } = require('./_pairFeedTurns.js');
+const { computeLiveKpis } = require('./_liveKpis.js');
+const { listOpenWithLegal } = require('./_liveDigest.js');
 
 const kv = new Redis({
   url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
@@ -113,11 +115,25 @@ module.exports = async function handler(req, res) {
   const groups = groupLiveEvents(webhookItems, slackItems);
   const merged = [...webhookItems, ...slackItems].sort((a, b) => b.at - a.at);
 
+  const contractIds = (await kv.get('contract_ids')) || [];
+  const cKeys = contractIds.map((id) => `contract:${id}`);
+  const contractRaw = cKeys.length ? await kv.mget(...cKeys) : [];
+  const webhookContracts = contractRaw
+    .map((c) => {
+      const unwrapped = c?.value !== undefined && 'EX' in c ? c.value : c;
+      return unwrapped && unwrapped.turns ? unwrapped : null;
+    })
+    .filter(Boolean);
+  const kpis = computeLiveKpis(webhookContracts);
+  const openWithLegal = listOpenWithLegal(webhookContracts, Date.now());
+
   return res.status(200).json({
     groups,
     items: merged,
     windowDays: 7,
     cutoffIso: new Date(cutoff).toISOString(),
+    kpis,
+    openWithLegal,
     counts: {
       webhook: webhookItems.length,
       slack: slackItems.length,

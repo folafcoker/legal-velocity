@@ -40,8 +40,11 @@ function sameTurnShape(t1, t2) {
 }
 
 /**
- * Merge two displayed turns into one. Takes the **earlier** *out*; the *in* (return) prefers
- * the earlier full cycle, then the other (see branch order).
+ * Merge two displayed turns into one **succession** row (manual combine):
+ * * **Earlier** (by out date/time) = the send *to* legal (commercial → legal).
+ * * **Later** = the return *from* legal (legal’s line / handoff onward), if present in that row.
+ * Whichever turn you check first, we sort by out so “first to legal” always wins the out leg,
+ * and the other row only supplies the **in** (return) side. Selection order does not matter.
  * @param {(a:string,b:string) => number | null} [businessDaysCalc]
  */
 function mergeTwoTurns(t1, t2, businessDaysCalc) {
@@ -50,25 +53,22 @@ function mergeTwoTurns(t1, t2, businessDaysCalc) {
     throw new Error('The two selected rows look identical; pick two different turn rows');
   }
   const [earlier, later] = sortByOut(t1, t2);
-  let inDate = null;
-  let inAt = null;
-  let retTo = null;
-  if (earlier.inDate && later.inDate) {
-    inDate = earlier.inDate;
-    inAt = earlier.inAt || null;
-    retTo = earlier.returnedTo != null && earlier.returnedTo !== '' ? earlier.returnedTo : null;
-  } else if (earlier.inDate) {
-    inDate = earlier.inDate;
-    inAt = earlier.inAt || null;
-    retTo = earlier.returnedTo != null && earlier.returnedTo !== '' ? earlier.returnedTo : null;
-  } else if (later.inDate) {
-    inDate = later.inDate;
-    inAt = later.inAt || null;
-    retTo = later.returnedTo != null && later.returnedTo !== '' ? later.returnedTo : null;
-  }
+  // Out: always the earlier “to legal” event.
   const outDate = earlier.outDate || null;
+  const outAtMs = earlier.outAtMs != null ? earlier.outAtMs : null;
   const outAt = (earlier.outAt && earlier.outAt !== '—' ? earlier.outAt : '—') || '—';
   const sentBy = (earlier.sentBy && String(earlier.sentBy) !== '—' ? earlier.sentBy : '—') || '—';
+  // In: always the later row’s return (connecting the second line as the legal return).
+  let inDate = null;
+  let inAt = null;
+  let inAtMs = null;
+  let retTo = null;
+  if (later.inDate) {
+    inDate = later.inDate;
+    inAt = later.inAt && later.inAt !== '—' ? later.inAt : null;
+    inAtMs = later.inAtMs != null && later.inAtMs > 0 ? later.inAtMs : null;
+    retTo = later.returnedTo != null && later.returnedTo !== '' ? later.returnedTo : null;
+  }
   const bd = businessDaysCalc && outDate && inDate
     ? businessDaysCalc(outDate, inDate)
     : null;
@@ -81,12 +81,16 @@ function mergeTwoTurns(t1, t2, businessDaysCalc) {
     inDate,
     outAt,
     inAt: inAt || null,
+    outAtMs,
+    inAtMs: inAtMs != null && inAtMs > 0 ? inAtMs : null,
     sentBy,
     returnedTo: retTo,
     businessDays: bd,
-    kind: inDate ? 'complete' : (earlier.kind === 'activity' || later.kind === 'activity' ? 'activity' : 'open'),
+    kind: inDate
+      ? 'complete'
+      : (earlier.kind === 'activity' || later.kind === 'activity' ? 'activity' : 'open'),
     contractId: earlier.contractId || later.contractId,
-    stale: (earlier.stale && later.stale) || false,
+    stale: inDate ? false : (earlier.stale && later.stale) || false,
     manualMerge: true,
   };
 }

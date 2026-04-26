@@ -62,8 +62,16 @@ code { font-family: var(--mono); font-size: 11px; background: #f4f4f4; padding: 
 .col-headers span:not(:first-child) { text-align: right; }
 .col-headers span:nth-child(2) { text-align: left; }
 .merge-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-  margin: 0 0 10px; font-size: 12px; color: var(--txt-2);
+  margin: 0 0 10px;
+  padding: 8px 0 10px;
+  font-size: 12px; color: var(--txt-2);
+  background: #fff;
+  box-shadow: 0 1px 0 var(--line);
+  /* Pinned to top of #preview-wrap while the contract list scrolls. */
 }
 .man-tag {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
@@ -186,12 +194,12 @@ Acme MNDA	2026-01-10	2026-01-12	Camilla'></textarea>
   <div id="msg"></div>
 
   <h2>Imported history</h2>
-  <p class="intro">Same layout as <a href="/queue">Queue</a>: one <strong>turn</strong> = a commercial <em>out to legal</em> paired in order with the next <em>from legal</em> line (Elaine/Julie) for the <strong>same</strong> document. If the list splits a round trip wrong, select <strong>two</strong> turn rows in the same contract and click <strong>Merge into one turn</strong> (saved in KV). <strong>Undo</strong> on a row marked manual. TSV/JSON and re-import still apply as before.</p>
+  <p class="intro">Same layout as <a href="/queue">Queue</a>: one <strong>turn</strong> = a commercial <em>out to legal</em> paired in order with the next <em>from legal</em> line (Elaine/Julie) for the <strong>same</strong> document. <strong>Manual merge</strong> is succession: we take the <strong>earlier</strong> “to legal” row and the <strong>later</strong> “from legal” return (which checkbox you pick first does not matter). <strong>Merge into one turn</strong> (saved in KV) undoes bad splits. <strong>Undo</strong> on a row marked manual. TSV/JSON and re-import still apply as before.</p>
   <div id="preview-wrap">
     <p id="pe"></p>
     <div class="merge-bar" id="merge-bar" style="display:none">
       <button type="button" id="merge-picks" disabled>Merge into one turn</button>
-      <span id="merge-hint" class="hint" style="margin:0">Select two rows in one contract (checkboxes), then merge.</span>
+      <span id="merge-hint" class="hint" style="margin:0">Pick two rows in the same contract: earlier = to legal, later = return. Order of checks does not matter.</span>
     </div>
     <div id="contract-list" style="display:none"></div>
     <div id="import-footer" style="display:none"></div>
@@ -256,6 +264,7 @@ function parseTs(s) {
   try { return new Date(s + ' 2026'); } catch (e) { return null; }
 }
 function turnStartMsFromTurn(turn) {
+  if (turn.outAtMs != null && !isNaN(+turn.outAtMs) && +turn.outAtMs > 0) return +turn.outAtMs;
   if (turn.openedAtIso) {
     const d = new Date(turn.openedAtIso);
     if (!isNaN(d.getTime())) return d.getTime();
@@ -269,11 +278,23 @@ function turnStartMsFromTurn(turn) {
   }
   return null;
 }
-function openPendingBusinessHours(turn) {
+/**
+ * Import is a snapshot, not a live queue: do not run the clock to "now" (that inflates
+ * "with legal" hours for every unpaired out). Capped at the last Juro line in this contract
+ * in the import (`importSnapshotEndMs` = g.lastAt from the API when present).
+ */
+function openPendingBusinessHours(turn, importSnapshotEndMs) {
   if (turn.returnedDate) return null;
   const a = turnStartMsFromTurn(turn);
   if (a == null) return null;
-  return businessHoursBetween(a, Date.now());
+  if (typeof importSnapshotEndMs === 'number' && importSnapshotEndMs > 0) {
+    const end = Math.max(a, importSnapshotEndMs);
+    if (end <= a) return 0;
+    return businessHoursBetween(a, end);
+  }
+  const end = Date.now();
+  if (end <= a) return 0;
+  return businessHoursBetween(a, end);
 }
 function hoursBetweenTs(sentAt, returnedAt) {
   const a = parseTs(sentAt);
@@ -291,6 +312,12 @@ function fmtDate(s) {
 }
 function durationFor(turn) {
   if (!turn.returnedDate) return null;
+  if (turn.inAtMs != null && turn.outAtMs != null && !isNaN(+turn.inAtMs) && !isNaN(+turn.outAtMs) && +turn.inAtMs >= +turn.outAtMs) {
+    var bh = businessHoursBetween(+turn.outAtMs, +turn.inAtMs);
+    if (bh >= 0) {
+      return { d: Math.floor(bh / 24), h: Math.round(bh % 24), totalH: Math.round(bh) };
+    }
+  }
   const hrs = hoursBetweenTs(turn.sentAt, turn.returnedAt);
   if (hrs !== null && hrs >= 0) {
     return { d: Math.floor(hrs / 24), h: Math.round(hrs % 24), totalH: Math.round(hrs) };
@@ -338,6 +365,8 @@ function apiTurnToQueueTurn(t) {
     returnedDate: t.inDate,
     sentAt: t.outAt && t.outAt !== '—' ? t.outAt : null,
     returnedAt: t.inAt && t.inAt !== '—' ? t.inAt : null,
+    outAtMs: t.outAtMs,
+    inAtMs: t.inAtMs,
     sentBy: t.sentBy,
     returnedTo: t.returnedTo,
     stale: t.stale === true,
@@ -350,11 +379,12 @@ function displayReturn(turn) {
   if (!turn.returnedDate) return null;
   return turn.returnedAt || fmtDate(turn.returnedDate);
 }
-function turnRowHTML(raw, turnIdx, gKey) {
+function turnRowHTML(raw, turnIdx, gKey, gGroup) {
   const turn = Object.assign({}, apiTurnToQueueTurn(raw));
   if (raw.turnId) turn.turnId = raw.turnId;
   if (raw.manualMerge) turn.manualMerge = true;
   if (raw.mergeId) turn.mergeId = raw.mergeId;
+  const gSnap = gGroup && gGroup.lastAt > 0 ? gGroup.lastAt : null;
   const manual = raw.manualMerge === true;
   const canPick = !manual && (raw.turnId);
   const cb = canPick
@@ -376,8 +406,8 @@ function turnRowHTML(raw, turnIdx, gKey) {
   const sentAt = displaySent(turn);
   const returnedAt = displayReturn(turn);
   const dur = durationFor(turn);
-  const rawOpenH = !turn.returnedDate && !turn.stale ? openPendingBusinessHours(turn) : null;
-  const longOpen = rawOpenH != null && rawOpenH > 168;
+  const rawOpenH = !turn.returnedDate && !turn.stale ? openPendingBusinessHours(turn, gSnap) : null;
+  const longOpen = rawOpenH != null && rawOpenH > 168 && gSnap == null;
   const openH = longOpen ? null : rawOpenH;
   const staleUi = turn.stale || longOpen;
   const openCls = openH != null
@@ -407,7 +437,7 @@ function contractBlockHTML(g) {
   const turns = raws.map(apiTurnToQueueTurn);
   const a = contractAvg(turns);
   const totalTurns = turns.length;
-  const turnsHTML = raws.map((raw, ti) => turnRowHTML(raw, ti, gKey)).join('');
+  const turnsHTML = raws.map((raw, ti) => turnRowHTML(raw, ti, gKey, g)).join('');
   return '<div class="contract" data-gk="' + esc(gKey) + '">' +
     '<div class="contract-row">' + '<div></div>' +
     '<div class="ct-name-wrap">' +

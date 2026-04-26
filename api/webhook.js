@@ -209,6 +209,12 @@ module.exports = async function handler(req, res) {
       turns:        [],
     };
   }
+  if (!Array.isArray(contract.turns)) {
+    contract.turns = [];
+  }
+  contract.counterparty = normalizeCounterparty(templateTitle) || contract.counterparty || 'Contract';
+  contract.owner = ownerName || ownerEmail || contract.owner || '';
+  contract.priority = smartfield(fields, 'Priority Level') || contract.priority || '';
 
   // ── Apply event ───────────────────────────────────────────────────────────
   let feedEvent = null;
@@ -221,11 +227,16 @@ module.exports = async function handler(req, res) {
     if (isToLegal && !hasOpenTurn) {
       // ── Contract entering the legal team from outside → open a new turn ──
       const sentBy = firstName(ownerName, ownerEmail);
+      const internalStatus = smartfield(fields, 'Internal Status') || 'Sent for Approval';
       contract.turns.push({
         sentToElaine: toDateStr(timestamp),
         sentAt:       formatTs(timestamp),
         openedAtIso:  timestamp, // Juro ISO time — for SLA (business hours) and dedupe
         sentBy,
+        approverName: approverName || null,
+        approverEmail: approverEmail || null,
+        priorityLevel: smartfield(fields, 'Priority Level') || null,
+        internalStatus, // from Juro smart field at the time the turn opened
         returnedDate: null,
         returnedAt:   null,
         returnedTo:   null,
@@ -244,7 +255,7 @@ module.exports = async function handler(req, res) {
         docType:        contract.counterparty,
         contractId,
         priority:       smartfield(fields, 'Priority Level')  || '—',
-        internalStatus: smartfield(fields, 'Internal Status') || 'Sent for Approval',
+        internalStatus,
         owner:          ownerName                             || ownerEmail || '—',
         approver:       approverName                          || approverEmail || '—',
         juroUrl,

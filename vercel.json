@@ -6,7 +6,7 @@
     { "src": "/api/(.*)", "dest": "/api/$1" }
   ],
   "crons": [
-    { "path": "/api/sla-webhook-check", "schedule": "*/15 * * * *" },
+    { "path": "/api/sla-webhook-check", "schedule": "0 */6 * * 1-5" },
     { "path": "/api/sync-slack", "schedule": "0 8 * * 1"   }
   ]
 }

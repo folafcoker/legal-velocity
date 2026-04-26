@@ -18,11 +18,139 @@ html, body { font-family: var(--f); background: #fff; color: var(--txt); font-si
 header { margin-bottom: 24px; }
 h1 { font-size: 18px; font-weight: 500; letter-spacing: -0.3px; }
 header p { color: var(--txt2); font-size: 13px; margin-top: 6px; line-height: 1.5; }
+p.intro-1l { max-width: 40em; }
 nav { font-size: 12px; margin-top: 14px; }
 nav a { color: var(--txt2); text-decoration: none; margin-right: 16px; }
 nav a:hover { color: var(--txt); text-decoration: underline; }
 nav a.on { color: var(--txt); font-weight: 500; }
-#status { font-size: 11px; color: #999; font-family: var(--mono); margin-bottom: 20px; line-height: 1.5; }
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 20px 0 22px;
+}
+@media (max-width: 720px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+}
+.kpi {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+  background: #fff;
+}
+.kpi-v {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+  color: var(--txt);
+}
+.kpi-v.muted { color: #9ca3af; font-size: 15px; }
+.kpi-v.warn { color: #c2410c; }
+.kpi-t { font-size: 11px; font-weight: 500; color: #374151; margin-top: 6px; line-height: 1.35; }
+.kpi-s { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.35px; margin-bottom: 4px; }
+.sla-breach-list { margin: 8px 0 12px; }
+.sla-breach-list .sla-breach-hd {
+  font-size: 11px; font-weight: 500; color: #374151; margin: 0 0 6px; letter-spacing: 0.02em;
+}
+.sla-breach-list .sla-breach-empty {
+  font-size: 12px; color: #9ca3af; margin: 0; padding: 0 0 2px;
+}
+.sla-breach-list .sla-table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.sla-breach-list .sla-table { width: 100%; min-width: 760px; font-size: 12px; border-collapse: collapse; }
+.sla-breach-list .sla-table th {
+  text-align: left; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.35px;
+  color: #6b7280; padding: 8px 10px; background: var(--bg2); border-bottom: 1px solid var(--line);
+}
+.sla-breach-list .sla-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; color: var(--txt2); }
+.sla-breach-list .sla-table tr:last-child td { border-bottom: 0; }
+.sla-breach-list .sla-table .name { color: var(--txt); font-weight: 500; }
+.sla-breach-list .sla-table .hours,
+.sla-breach-list .sla-table .sent-at { font-family: var(--mono); color: #374151; white-space: nowrap; }
+.sla-breach-list .sla-table a { color: #1d4ed8; text-decoration: none; }
+.sla-breach-list .sla-table a:hover { text-decoration: underline; }
+.kpi-legend {
+  font-size: 10px; color: #9ca3af; margin: 0 0 0; line-height: 1.4;
+  padding: 0;
+}
+.open-legal-wrap { margin: 0 0 16px; }
+.open-legal-wrap h2 { margin-bottom: 8px; }
+.ol-table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.ol-table { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+.ol-table th {
+  text-align: left; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.35px;
+  color: #6b7280; padding: 8px 10px; background: var(--bg2); border-bottom: 1px solid var(--line);
+}
+.ol-table th .ol-sort-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.ol-table th .ol-sort-btn:hover { color: #374151; }
+.ol-table th .ol-sort-btn.active { color: #111827; }
+.ol-table th .ol-sort-btn .arr { margin-left: 4px; font-size: 9px; }
+.ol-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.ol-table tr:last-child td { border-bottom: 0; }
+.ol-table .nm a { color: #1d4ed8; text-decoration: none; font-weight: 500; }
+.ol-table .nm a:hover { text-decoration: underline; }
+.ol-table .when { font-family: var(--mono); font-size: 11.5px; color: #374151; }
+.ol-table .st { color: var(--txt2); }
+.ol-table .dur { font-family: var(--mono); font-size: 11.5px; white-space: nowrap; }
+.ol-table .dur.fast { color: #15803d; }
+.ol-table .dur.warn { color: #c2410c; }
+.ol-table .dur.slow { color: #b91c1c; }
+.ol-foot { font-size: 10px; color: #9ca3af; margin: 6px 0 0; }
+.ol-details { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 16px; background: #fff; }
+.ol-details > summary {
+  font-size: 12.5px; font-weight: 500; color: #374151; padding: 10px 12px; cursor: pointer; user-select: none;
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.ol-details > summary::-webkit-details-marker { display: none; }
+.ol-details > summary::after { content: "▸"; font-size: 10px; color: #9ca3af; }
+.ol-details[open] > summary { border-bottom: 1px solid var(--line); }
+.ol-details[open] > summary::after { content: "▾"; }
+.ol-details .open-legal-wrap { margin: 0; padding: 0 0 4px; }
+.lp-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 16px; padding: 0 0 2px;
+}
+button.lp-btn {
+  --lp-blue: #3d6ea8;
+  --lp-blue-hover: #325a8c;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--lp-blue);
+  color: #fff;
+  font-size: 12.5px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(30, 58, 90, 0.12);
+}
+button.lp-btn .lp-slack-ico { width: 1.1em; height: 1.1em; flex-shrink: 0; display: block; }
+button.lp-btn:hover:not(:disabled) { background: var(--lp-blue-hover); }
+button.lp-btn:focus-visible { outline: 2px solid #7eb4e6; outline-offset: 2px; }
+button.lp-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.lp-tok { width: 220px; max-width: 100%; font-size: 12px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; font-family: var(--mono); }
+.lp-hint { font-size: 11px; color: #6b7280; width: 100%; margin: 0; }
+#status { font-size: 11px; color: #999; font-family: var(--mono); margin: 8px 0 16px; line-height: 1.5; }
+.log-details { border: 1px solid var(--line); border-radius: 8px; padding: 0 0 4px; margin-bottom: 20px; background: #fff; }
+.log-details > summary {
+  font-size: 12px; font-weight: 500; color: var(--txt2); padding: 10px 12px; cursor: pointer; user-select: none;
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.log-details > summary::-webkit-details-marker { display: none; }
+.log-details > summary::after { content: "▸"; font-size: 10px; color: #9ca3af; }
+.log-details[open] > summary::after { content: "▾"; }
+.log-details .group { border: 0; border-radius: 0; border-top: 1px solid var(--line); }
 .group {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -55,23 +183,224 @@ nav a.on { color: var(--txt); font-weight: 500; }
 <div class="wrap">
   <header>
     <h1>Live</h1>
-    <p>Last <strong>7 days</strong>, by contract. <strong>Approvals</strong> = one line per <em>turn</em>: sent to legal → returned (or still open). <strong>Slack</strong> matches the same deal names. Unlinked Slack is at the bottom.</p>
+    <p class="intro-1l">Juro <strong>webhook</strong> + Slack sync. <strong>Turn</strong> = out to legal (Elaine or Julie) → return to the team or full approval. “Back from legal, 7d” counts returns we infer from those webhooks (see footnote). Expand the bottom for raw 7-day rows.</p>
     <nav>
       <a class="on" href="/">Live</a>
       <a href="/history">History import</a>
       <a href="/breach">Breach</a>
       <a href="/queue" title="Merged queue table">Queue</a>
     </nav>
+    <div class="kpi-row" id="kpi-row" aria-label="Summary metrics">
+      <div class="kpi">
+        <div class="kpi-s">Out to legal, 7d</div>
+        <div class="kpi-v" id="kpi-sent">—</div>
+        <div class="kpi-t" id="kpi-sent-sub">Contracts sent to legal in the rolling week</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-s">Back from legal, 7d</div>
+        <div class="kpi-v" id="kpi-ret">—</div>
+        <div class="kpi-t" id="kpi-ret-sub">Contracts returned from legal in the window</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-s">Avg. turnaround</div>
+        <div class="kpi-v" id="kpi-avg">—</div>
+        <div class="kpi-t" id="kpi-avg-sub">Mean bus. hours, for those returns in 7d</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-s">Open with legal</div>
+        <div class="kpi-v" id="kpi-open">—</div>
+        <div class="kpi-t" id="kpi-open-sub">No return / full approval yet (webhook)</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-s" id="kpi-sla-label">Over SLA (48h bus.)</div>
+        <div class="kpi-v" id="kpi-sla">—</div>
+        <div class="kpi-t" id="kpi-sla-sub">Open turns over SLA (bus. hrs, US calendar)</div>
+      </div>
+    </div>
+    <div class="sla-breach-list" id="sla-breach-list" aria-live="polite" aria-label="Contracts over SLA"></div>
+    <div class="lp-bar" id="lp-bar">
+      <button type="button" class="lp-btn" id="lp-btn" disabled title="Sends a fixed note to the Legal Pulse channel via incoming webhook" aria-label="Send note to Legal Pulse, Slack">Send note to Legal Pulse<svg class="lp-slack-ico" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.521-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.52 2.521h-2.524V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.528 2.528 0 0 1-2.52-2.521V2.522A2.528 2.528 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.52A2.528 2.528 0 0 1 15.165 24a2.528 2.528 0 0 1-2.52-2.52v-2.524h2.52zM15.165 17.688a2.528 2.528 0 0 1-2.52-2.523 2.528 2.528 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.165a2.528 2.528 0 0 1-2.52 2.523h-6.315z" /></svg></button>
+      <input type="password" class="lp-tok" id="lp-tok" placeholder="Paste token if LEGAL_PASTE_TOKEN is set" autocomplete="off" />
+      <p class="lp-hint" id="lp-hint"></p>
+    </div>
+    <details class="ol-details" id="ol-details" aria-label="All open with legal">
+      <summary id="ol-summary">Open with legal (—)</summary>
+      <div class="open-legal-wrap" id="open-legal-wrap">
+        <div class="ol-table-scroll">
+          <table class="ol-table" id="open-legal-table">
+            <thead>
+              <tr>
+                <th><button type="button" class="ol-sort-btn" data-sort-key="name">Contract<span class="arr"></span></button></th>
+                <th><button type="button" class="ol-sort-btn" data-sort-key="withLegalBusinessHours">With legal (bus. h)<span class="arr"></span></button></th>
+                <th><button type="button" class="ol-sort-btn" data-sort-key="sentAt">Sent to legal<span class="arr"></span></button></th>
+                <th><button type="button" class="ol-sort-btn" data-sort-key="internalStatus">Internal status (at send)<span class="arr"></span></button></th>
+              </tr>
+            </thead>
+            <tbody id="open-legal-tbody"></tbody>
+          </table>
+        </div>
+        <p class="ol-foot" id="open-legal-foot"></p>
+      </div>
+    </details>
+    <p class="kpi-legend" id="kpi-legend">7d = rolling. SLA = business hours (US). Averages use return <em>date</em> where shown. “Back from legal, 7d” uses Juro webhooks: we count a return when the next relevant event is <em>sent for approval to someone outside</em> legal (handoff from Elaine or Julie) or when the run is <em>fully approved</em>—the open turn then closes and leaves the open list on the next sync.</p>
   </header>
   <p id="status">Loading…</p>
-  <div id="log"></div>
+  <details class="log-details" id="log-details">
+    <summary>Full activity — last 7 days by contract</summary>
+    <div id="log"></div>
+  </details>
 </div>
 <script>
+const LP_TOK = 'lv-paste-tok';
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function fmtTime(at) {
   return new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+const OPEN_SORT = { key: 'sentAt', dir: 'desc' };
+function parseOpenSentAtMs(row) {
+  if (!row) return 0;
+  if (row.openedAtIso) {
+    const t = new Date(row.openedAtIso).getTime();
+    if (!isNaN(t)) return t;
+  }
+  return 0;
+}
+function sortedOpenRows(rows) {
+  const list = Array.isArray(rows) ? [...rows] : [];
+  const key = OPEN_SORT.key;
+  const dirMul = OPEN_SORT.dir === 'asc' ? 1 : -1;
+  const cmpText = (a, b) => String(a || '').localeCompare(String(b || ''));
+  list.sort((a, b) => {
+    let out = 0;
+    if (key === 'withLegalBusinessHours') {
+      const av = a.withLegalBusinessHours == null || isNaN(+a.withLegalBusinessHours) ? Number.NEGATIVE_INFINITY : +a.withLegalBusinessHours;
+      const bv = b.withLegalBusinessHours == null || isNaN(+b.withLegalBusinessHours) ? Number.NEGATIVE_INFINITY : +b.withLegalBusinessHours;
+      out = av - bv;
+    } else if (key === 'sentAt') {
+      out = parseOpenSentAtMs(a) - parseOpenSentAtMs(b);
+    } else if (key === 'internalStatus') {
+      out = cmpText(a.internalStatus, b.internalStatus);
+    } else {
+      out = cmpText(a.name, b.name);
+    }
+    if (out === 0) out = cmpText(a.name, b.name);
+    return out * dirMul;
+  });
+  return list;
+}
+function updateOpenSortUi() {
+  const btns = document.querySelectorAll('.ol-sort-btn');
+  btns.forEach((btn) => {
+    const key = btn.getAttribute('data-sort-key');
+    const arr = btn.querySelector('.arr');
+    const active = key === OPEN_SORT.key;
+    btn.classList.toggle('active', active);
+    if (arr) arr.textContent = active ? (OPEN_SORT.dir === 'asc' ? '▲' : '▼') : '';
+  });
+}
+function formatSentToLegalCell(row) {
+  if (row.sentAt) return row.sentAt;
+  if (row.openedAtIso) {
+    try {
+      return new Date(row.openedAtIso).toLocaleString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    } catch (e) { return '—'; }
+  }
+  if (row.sentToElaine) return row.sentToElaine;
+  return '—';
+}
+function formatWithLegalHrs(r) {
+  if (r.withLegalBusinessHours == null || isNaN(+r.withLegalBusinessHours)) return '—';
+  return (+r.withLegalBusinessHours).toFixed(1) + ' bus. h';
+}
+function withLegalHrsClass(r) {
+  const h = +r.withLegalBusinessHours;
+  if (isNaN(h)) return '';
+  if (h <= 24) return 'fast';
+  if (h <= 48) return 'warn';
+  return 'slow';
+}
+function renderOpenWithLegal(tbody, foot, rows) {
+  if (!tbody) return;
+  const sortedRows = sortedOpenRows(rows);
+  if (!sortedRows.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="st" style="color:#9ca3af">No contracts open with legal right now.</td></tr>';
+    if (foot) {
+      foot.textContent = '“With legal” is business hours (US calendar in code) from the open time to now; it clears when a return webhook updates the turn.';
+    }
+    updateOpenSortUi();
+    return;
+  }
+  tbody.innerHTML = sortedRows.map((r) => {
+    const nm = esc(r.name || '—');
+    const nameCell = r.juroUrl
+      ? '<a href="' + esc(r.juroUrl) + '" target="_blank" rel="noopener noreferrer">' + nm + '</a>'
+      : nm;
+    const durCls = withLegalHrsClass(r);
+    return '<tr><td class="nm">' + nameCell + '</td><td class="dur ' + esc(durCls) + '">' + esc(formatWithLegalHrs(r)) + '</td><td class="when">' + esc(formatSentToLegalCell(r)) + '</td><td class="st">' + esc(r.internalStatus || '—') + '</td></tr>';
+  }).join('');
+  if (foot) {
+    foot.textContent = 'Time with legal = business hours since send (Juro “Internal status” at send; old turns may show — for status).';
+  }
+  updateOpenSortUi();
+}
+async function onLegalPulseClick() {
+  const hint = document.getElementById('lp-hint');
+  if (hint) hint.textContent = 'Sending…';
+  const inp = document.getElementById('lp-tok');
+  const raw = (inp && inp.value.trim()) || localStorage.getItem(LP_TOK) || '';
+  if (raw) localStorage.setItem(LP_TOK, raw);
+  const h = { 'Content-Type': 'application/json' };
+  if (raw) h.Authorization = 'Bearer ' + raw;
+  try {
+    const r = await fetch('/api/legal-pulse-slack', { method: 'POST', headers: h, body: '{}' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Request failed ' + r.status);
+    if (hint) hint.textContent = 'Sent to Legal Pulse.';
+  } catch (e) {
+    if (hint) hint.textContent = (e && e.message) ? String(e.message) : 'Failed';
+  }
+}
+function renderSlaBreachList(container, items) {
+  if (!container) return;
+  if (!items || !items.length) {
+    container.innerHTML =
+      '<p class="sla-breach-hd">Over SLA (open with legal)</p>' +
+      '<p class="sla-breach-empty">None over the SLA right now.</p>';
+    return;
+  }
+  const formatSentAt = (x) => {
+    if (!x || !x.sentAtDetails) return '—';
+    const ts = new Date(x.sentAtDetails).getTime();
+    if (!isNaN(ts)) {
+      return new Date(ts).toLocaleString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    }
+    return String(x.sentAtDetails);
+  };
+  const rows = items.map((x) => {
+    const contractName = esc(x.name || '—');
+    const h = x.businessHoursOpen != null ? x.businessHoursOpen.toFixed(1) + ' h' : '—';
+    return '<tr>' +
+      '<td class="name">' + contractName + '</td>' +
+      '<td>' + esc(x.approver || '—') + '</td>' +
+      '<td>' + esc(x.priorityLevel || '—') + '</td>' +
+      '<td class="sent-at">' + esc(formatSentAt(x)) + '</td>' +
+      '<td>' + esc(x.contractType || '—') + '</td>' +
+      '<td>' + esc(x.owner || '—') + '</td>' +
+      '<td class="hours">' + esc(h) + '</td>' +
+      '</tr>';
+  }).join('');
+  container.innerHTML =
+    '<p class="sla-breach-hd">Over SLA (open with legal)</p>' +
+    '<div class="sla-table-scroll">' +
+    '<table class="sla-table">' +
+    '<thead><tr><th>Contract</th><th>Approver</th><th>Priority Level</th><th>Sent At details</th><th>Contract type</th><th>Owner</th><th>With legal (bus. h)</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table></div>';
 }
 function renderRows(items, isSlack) {
   if (!items || !items.length) return '<p class="meta" style="padding:6px 14px 10px">None in this group.</p>';
@@ -103,26 +432,117 @@ async function load() {
       ? `${tw} approval turn(s), ${ts} Slack` + (d.groups ? `, ${d.groups.length} group(s)` : '')
       : 'No activity in the window';
     st.textContent = line + '.';
-    if (d.slackLastSynced) st.textContent += ' Slack channel sync: ' + new Date(d.slackLastSynced).toLocaleString();
+    if (d.slackLastSynced) st.textContent += ' Slack sync: ' + new Date(d.slackLastSynced).toLocaleString();
+    const k = d.kpis;
+    if (k) {
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      set('kpi-sent', String(k.sentToLegal7d));
+      set('kpi-ret', String(k.returned7d));
+      if (k.avgTurnaroundBusinessHours != null) {
+        set('kpi-avg', String(k.avgTurnaroundBusinessHours));
+        const sub = document.getElementById('kpi-avg-sub');
+        if (sub) sub.textContent = 'Mean bus. hours, returns completed in the last 7d';
+      } else {
+        set('kpi-avg', '—');
+        const sub = document.getElementById('kpi-avg-sub');
+        if (sub) sub.textContent = 'No return in the rolling 7d window';
+      }
+      set('kpi-open', String(k.openNow));
+      set('kpi-sla', String(k.openOverSla48h));
+      const slaH = k.slaHours != null ? k.slaHours : 48;
+      const lbl = document.getElementById('kpi-sla-label');
+      if (lbl) lbl.textContent = 'Over SLA (' + slaH + 'h bus.)';
+      const slaSub = document.getElementById('kpi-sla-sub');
+      if (slaSub) slaSub.textContent = 'Open > ' + slaH + ' business hours (US workdays, holidays in code)';
+      const slaEl = document.getElementById('kpi-sla');
+      if (slaEl) {
+        slaEl.className = 'kpi-v' + (k.openOverSla48h > 0 ? ' warn' : '');
+      }
+      renderSlaBreachList(document.getElementById('sla-breach-list'), k.overSlaContracts || []);
+      const lpBtn = document.getElementById('lp-btn');
+      if (lpBtn) lpBtn.disabled = !k.openOverSla48h;
+    } else {
+      renderSlaBreachList(document.getElementById('sla-breach-list'), []);
+      const lpBtn0 = document.getElementById('lp-btn');
+      if (lpBtn0) lpBtn0.disabled = true;
+    }
+    const openList = d.openWithLegal || [];
+    window.__openWithLegalRows = openList;
+    const ols = document.getElementById('ol-summary');
+    if (ols) ols.textContent = 'Open with legal (' + openList.length + ')';
+    renderOpenWithLegal(
+      document.getElementById('open-legal-tbody'),
+      document.getElementById('open-legal-foot'),
+      openList,
+    );
+    const lph = document.getElementById('lp-hint');
+    if (lph) lph.textContent = '';
+
     const gr = d.groups;
     if (!gr || !gr.length) {
-      log.innerHTML = '<div class="empty">No rows yet, or group API empty.</div>';
-      return;
-    }
-    log.innerHTML = gr.map((g) => {
-      return `<div class="group" data-gid="${esc(g.id || '')}">
+      log.innerHTML = '<div class="empty" style="padding:12px 14px">No rows in the 7-day window.</div>';
+    } else {
+      log.innerHTML = gr.map((g) => {
+        return `<div class="group" data-gid="${esc(g.id || '')}">
         <div class="group-h">${esc(g.label || '—')}</div>
         <div class="sub ap">Approvals</div>
         ${renderRows(g.webhooks, false)}
         <div class="sub sl">Slack</div>
         ${renderRows(g.slack, true)}
       </div>`;
-    }).join('');
+      }).join('');
+    }
   } catch (e) {
     st.textContent = '';
-    log.innerHTML = '<p class="err">Could not load /api/live-log</p>';
+    ['kpi-sent', 'kpi-ret', 'kpi-avg', 'kpi-open', 'kpi-sla'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = '—'; el.className = 'kpi-v'; }
+    });
+    const defAvg = document.getElementById('kpi-avg-sub');
+    if (defAvg) defAvg.textContent = 'Mean bus. hours, for those returns in 7d';
+    const defSlaL = document.getElementById('kpi-sla-label');
+    if (defSlaL) defSlaL.textContent = 'Over SLA (48h bus.)';
+    const defSlaS = document.getElementById('kpi-sla-sub');
+    if (defSlaS) defSlaS.textContent = 'Open turns over SLA (bus. hrs, US calendar)';
+    const slb = document.getElementById('sla-breach-list');
+    if (slb) slb.innerHTML = '';
+    const olb = document.getElementById('open-legal-tbody');
+    if (olb) olb.innerHTML = '';
+    window.__openWithLegalRows = [];
+    const olf = document.getElementById('open-legal-foot');
+    if (olf) olf.textContent = '';
+    const ols0 = document.getElementById('ol-summary');
+    if (ols0) ols0.textContent = 'Open with legal (—)';
+    const lpb0 = document.getElementById('lp-btn');
+    if (lpb0) lpb0.disabled = true;
+    const lph0 = document.getElementById('lp-hint');
+    if (lph0) lph0.textContent = '';
+    log.innerHTML = '<p class="err" style="padding:12px 14px">Could not load /api/live-log</p>';
   }
 }
+(function initLp() {
+  const t = document.getElementById('lp-tok');
+  if (t) t.value = localStorage.getItem(LP_TOK) || '';
+  const b = document.getElementById('lp-btn');
+  if (b) b.addEventListener('click', onLegalPulseClick);
+  document.querySelectorAll('.ol-sort-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-sort-key');
+      if (!key) return;
+      if (OPEN_SORT.key === key) {
+        OPEN_SORT.dir = OPEN_SORT.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        OPEN_SORT.key = key;
+        OPEN_SORT.dir = key === 'name' || key === 'internalStatus' ? 'asc' : 'desc';
+      }
+      renderOpenWithLegal(
+        document.getElementById('open-legal-tbody'),
+        document.getElementById('open-legal-foot'),
+        window.__openWithLegalRows || [],
+      );
+    });
+  });
+})();
 load();
 setInterval(load, 30 * 1000);
 </script>

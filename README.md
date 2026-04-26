@@ -12,7 +12,7 @@ Live dashboard tracking how long contracts spend with the legal team (Elaine For
 - **Slack contract sync** still runs on a schedule: Vercel cron calls `/api/sync-slack` weekly (Mondays 08:00 UTC) — this does **not** call the Juro API.
 - **Usage / quota math:** `GET /api/juro-usage` (Redis-only; no Juro calls) for day/month counters when sync has run in the past.
 - **Dashboard default:** `GET /api/contracts?source=webhook` — main table is **webhook-only** unless you check “Show merged list”. A **Slack thread stream** reads from `GET /api/slack-stream` (refreshed when `/api/sync-slack` runs).
-- **SLA (webhook):** `GET /api/sla-webhook-check` every 15 minutes (Vercel cron). Flags open legal turns (no return webhook) over **48 business hours** and posts to `SLACK_SLA_USER_ID` (bot DM) or `SLACK_SLA_WEBHOOK_URL` / `SLACK_WEBHOOK_URL`. Deduped in Redis per contract + turn start.
+- **SLA (webhook):** `GET /api/sla-webhook-check` every 6 hours, Mon-Fri (Vercel cron, UTC/GMT). Flags open legal turns (no return webhook) over **48 business hours** and posts to `SLACK_SLA_USER_ID` (bot DM) or `SLACK_SLA_WEBHOOK_URL` / `SLACK_WEBHOOK_URL`. Deduped in Redis per contract + turn start.
 
 ---
 
@@ -25,6 +25,21 @@ Live dashboard tracking how long contracts spend with the legal team (Elaine For
 - **SLA breach view** — `/breach` shows every contract that exceeded the 48h threshold
 - **History log** — full audit trail of every approval turn since Nov 2025
 - **Slack notifications** — posts to `#x-velocity-legal-pulse` whenever a contract lands with legal, including Priority Level, Internal Status, Owner and a direct Juro link
+
+### Latest delivery wrap-up (26 Apr 2026)
+
+- Live KPI counts now reflect **unique contracts (contract ID)** for:
+  - out to legal (7d)
+  - back from legal (7d)
+  - open with legal
+- Open-with-legal queue now supports **click-to-sort** by contract, with-legal business hours, sent-to-legal time, and internal status.
+- Open-with-legal business hours now use SLA color coding:
+  - <=24h green
+  - >24h and <=48h orange
+  - >48h red
+- Over-SLA panel upgraded to a richer contract-detail table (approver, priority, sent-at details, type, owner, hours).
+- Legal Pulse Slack nudge format switched from code-table format to Slack-friendly bullet/sub-bullet format.
+- Webhook hardening: `api/webhook` now guards missing/legacy `turns` arrays to avoid `findIndex` runtime errors.
 
 ---
 
@@ -79,7 +94,7 @@ SLA threshold: **48 business hours** (weekends + US federal holidays excluded).
 | `/api/feed` | GET | Last 5 approval events from the last 24h |
 | `/api/history` | GET | Full turn history; supports `?from=YYYY-MM-DD&to=YYYY-MM-DD` |
 | `/api/slack-stream` | GET | Thread stream for `#commercial-contracts` (from last Slack sync) |
-| `/api/sla-webhook-check` | GET/POST | Open-turn SLA check (webhook contracts only); Vercel cron or `?secret=` |
+| `/api/sla-webhook-check` | GET/POST | Open-turn SLA check (webhook contracts only); Vercel cron every 6h Mon-Fri (UTC) or `?secret=` |
 | `/api/sync-slack` | GET | Slack ingestion (cron + manual); no Juro API |
 | `/api/sync-sheet` | POST | Google Sheet import into Redis (if used) |
 

@@ -1,6 +1,6 @@
 # Legal Velocity — Status & Open Items
 
-_Last updated: 25 Apr 2026_
+_Last updated: 26 Apr 2026_
 
 ---
 
@@ -26,6 +26,10 @@ _Last updated: 25 Apr 2026_
 - **Filtering** — removes signed, test/demo, generic, bare Granola, supplier compliance forms, and internal Granola template docs
 - **Dashboard enrichment** — urgency badges (urgent / follow-up) from Slack, expanded view shows Slack thread summaries, unmatched Slack section surfaces contracts mentioned in Slack but not yet in Juro
 - **Bi-weekly remote agent** — CCR routine `trig_01PJu2wmhSd5HyKFZeohM5bL` (every other Monday 08:00 BST) also triggers Slack sync as a fallback / cross-check
+- **KPI contract counting** — out/back/open KPI metrics now count unique contracts (by contract ID), not approval turns
+- **Open queue UX** — open-with-legal table now supports sortable columns and SLA color coding (green <=24h, orange <=48h, red >48h)
+- **SLA notifications** — cron cadence updated to every 6 hours, Mon-Fri (UTC/GMT) and Legal Pulse manual message format is Slack-friendly bullets/sub-bullets
+- **Webhook stability** — `api/webhook` now safely initialises missing `turns` arrays from legacy contract records
 
 ---
 
@@ -83,11 +87,11 @@ When Elaine sends a contract back to the counterparty or onward to another appro
 ### 6. SLA flagging (from original plan)
 Surface contracts that have been with the legal team too long.
 
-- Proposed: warn > 3 calendar days, breach > 7 days
-- Show on dashboard row (colour / badge)
-- Optional Slack alert when threshold crossed
+- Implemented: warning/color logic in open queue against 48 business-hour SLA bands
+- Implemented: automatic Slack alerting via `/api/sla-webhook-check` cron
+- Implemented: Mon-Fri every-6-hours check cadence (UTC/GMT)
 
-**Decision needed:** calendar vs business days, warn/breach thresholds, whether to Slack alert.
+**Decision now:** business-hours SLA with alerting enabled.
 
 **Files:** `index.html`, optionally `api/webhook.js` or new `api/sla-check.js`
 
